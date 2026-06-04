@@ -1,0 +1,400 @@
+{
+  "generated_at": "2026-05-24T22:26:37.399172",
+  "group_summary": {
+    "group": "INDIAN",
+    "markets_covered": [
+      "NIFTY50",
+      "BANKNIFTY",
+      "MIDCAPNIFTY",
+      "SENSEX",
+      "FINNIFTY"
+    ],
+    "markets_failed": [],
+    "legacy": {
+      "mode": "legacy",
+      "total_signals": 213,
+      "executed_trades": 213,
+      "blocked_trades": 0,
+      "block_rate": 0.0,
+      "blocked_reason_breakdown": {},
+      "win_rate": 86.86,
+      "profit_factor": 20.448,
+      "average_rr": 2.746,
+      "max_drawdown": 51.2,
+      "average_loss": -18.668,
+      "average_win": 51.685,
+      "missed_winner_count": 0,
+      "blocked_loser_count": 0,
+      "stale_entry_prevention_count": 0,
+      "net_pnl": 8032.08
+    },
+    "safe_manual_simulated": {
+      "mode": "safe_manual_simulated",
+      "total_signals": 213,
+      "executed_trades": 0,
+      "blocked_trades": 213,
+      "block_rate": 100.0,
+      "blocked_reason_breakdown": {
+        "RR_DAMAGED_BELOW_MINIMUM": 209,
+        "REVALIDATION:SIGNAL_EXPIRED": 4
+      },
+      "win_rate": 0.0,
+      "profit_factor": null,
+      "average_rr": 0.0,
+      "max_drawdown": 0.0,
+      "average_loss": 0.0,
+      "average_win": 0.0,
+      "missed_winner_count": 185,
+      "blocked_loser_count": 28,
+      "stale_entry_prevention_count": 0,
+      "net_pnl": 0.0,
+      "net_pnl_difference_vs_legacy": -8032.08
+    },
+    "safe_auto_approval": {
+      "mode": "safe_auto_approval",
+      "total_signals": 213,
+      "executed_trades": 4,
+      "blocked_trades": 209,
+      "block_rate": 98.12,
+      "blocked_reason_breakdown": {
+        "RR_DAMAGED_BELOW_MINIMUM": 209
+      },
+      "win_rate": 50.0,
+      "profit_factor": 0.0,
+      "average_rr": 2.75,
+      "max_drawdown": 39.35,
+      "average_loss": -8.37,
+      "average_win": 3.277,
+      "missed_winner_count": 183,
+      "blocked_loser_count": 26,
+      "stale_entry_prevention_count": 0,
+      "net_pnl": -9.08,
+      "net_pnl_difference_vs_legacy": -8041.16
+    }
+  },
+  "market_results": [
+    {
+      "market": "NIFTY50",
+      "symbol": "NSE:NIFTY50-INDEX",
+      "legacy": {
+        "mode": "LEGACY",
+        "total_signals": 56,
+        "executed_trades": 56,
+        "blocked_trades": 0,
+        "blocked_reason_breakdown": {},
+        "win_rate": 91.07,
+        "profit_factor": 33.843,
+        "average_rr": 2.732,
+        "max_drawdown": 32.8,
+        "average_loss": -12.33,
+        "average_win": 40.91,
+        "missed_winner_count": 0,
+        "blocked_loser_count": 0,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 2024.77,
+        "slippage_impact": null
+      },
+      "safe_manual_simulated": {
+        "mode": "SAFE_VALIDATION_MANUAL_SIMULATED",
+        "total_signals": 56,
+        "executed_trades": 0,
+        "blocked_trades": 56,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 56
+        },
+        "win_rate": 0.0,
+        "profit_factor": null,
+        "average_rr": 0.0,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 0.0,
+        "missed_winner_count": 51,
+        "blocked_loser_count": 5,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 0,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -2024.77
+      },
+      "safe_auto_approval": {
+        "mode": "SAFE_VALIDATION_AUTO_APPROVAL",
+        "total_signals": 56,
+        "executed_trades": 0,
+        "blocked_trades": 56,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 56
+        },
+        "win_rate": 0.0,
+        "profit_factor": null,
+        "average_rr": 0.0,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 0.0,
+        "missed_winner_count": 51,
+        "blocked_loser_count": 5,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 0,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -2024.77
+      }
+    },
+    {
+      "market": "BANKNIFTY",
+      "symbol": "NSE:NIFTYBANK-INDEX",
+      "legacy": {
+        "mode": "LEGACY",
+        "total_signals": 26,
+        "executed_trades": 26,
+        "blocked_trades": 0,
+        "blocked_reason_breakdown": {},
+        "win_rate": 88.46,
+        "profit_factor": 25.454,
+        "average_rr": 2.615,
+        "max_drawdown": 51.2,
+        "average_loss": -23.133,
+        "average_win": 76.804,
+        "missed_winner_count": 0,
+        "blocked_loser_count": 0,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 1697.1,
+        "slippage_impact": null
+      },
+      "safe_manual_simulated": {
+        "mode": "SAFE_VALIDATION_MANUAL_SIMULATED",
+        "total_signals": 26,
+        "executed_trades": 0,
+        "blocked_trades": 26,
+        "blocked_reason_breakdown": {
+          "REVALIDATION:SIGNAL_EXPIRED": 1,
+          "RR_DAMAGED_BELOW_MINIMUM": 25
+        },
+        "win_rate": 0.0,
+        "profit_factor": null,
+        "average_rr": 0.0,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 0.0,
+        "missed_winner_count": 23,
+        "blocked_loser_count": 3,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 0,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1697.1
+      },
+      "safe_auto_approval": {
+        "mode": "SAFE_VALIDATION_AUTO_APPROVAL",
+        "total_signals": 26,
+        "executed_trades": 1,
+        "blocked_trades": 25,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 25
+        },
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "average_rr": 3.0,
+        "max_drawdown": 39.35,
+        "average_loss": -39.35,
+        "average_win": 0.0,
+        "missed_winner_count": 23,
+        "blocked_loser_count": 2,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": -39.35,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1736.45
+      }
+    },
+    {
+      "market": "MIDCAPNIFTY",
+      "symbol": "NSE:MIDCPNIFTY-INDEX",
+      "legacy": {
+        "mode": "LEGACY",
+        "total_signals": 55,
+        "executed_trades": 55,
+        "blocked_trades": 0,
+        "blocked_reason_breakdown": {},
+        "win_rate": 83.64,
+        "profit_factor": 11.115,
+        "average_rr": 2.818,
+        "max_drawdown": 42.5,
+        "average_loss": -14.128,
+        "average_win": 30.724,
+        "missed_winner_count": 0,
+        "blocked_loser_count": 0,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 1286.16,
+        "slippage_impact": null
+      },
+      "safe_manual_simulated": {
+        "mode": "SAFE_VALIDATION_MANUAL_SIMULATED",
+        "total_signals": 55,
+        "executed_trades": 0,
+        "blocked_trades": 55,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 53,
+          "REVALIDATION:SIGNAL_EXPIRED": 2
+        },
+        "win_rate": 0.0,
+        "profit_factor": null,
+        "average_rr": 0.0,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 0.0,
+        "missed_winner_count": 46,
+        "blocked_loser_count": 9,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 0,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1286.16
+      },
+      "safe_auto_approval": {
+        "mode": "SAFE_VALIDATION_AUTO_APPROVAL",
+        "total_signals": 55,
+        "executed_trades": 2,
+        "blocked_trades": 53,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 53
+        },
+        "win_rate": 100.0,
+        "profit_factor": null,
+        "average_rr": 2.5,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 16.385,
+        "missed_winner_count": 44,
+        "blocked_loser_count": 9,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 32.77,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1253.39
+      }
+    },
+    {
+      "market": "SENSEX",
+      "symbol": "BSE:SENSEX-INDEX",
+      "legacy": {
+        "mode": "LEGACY",
+        "total_signals": 23,
+        "executed_trades": 23,
+        "blocked_trades": 0,
+        "blocked_reason_breakdown": {},
+        "win_rate": 86.96,
+        "profit_factor": 15.542,
+        "average_rr": 2.739,
+        "max_drawdown": 43.32,
+        "average_loss": -29.567,
+        "average_win": 68.929,
+        "missed_winner_count": 0,
+        "blocked_loser_count": 0,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 1289.88,
+        "slippage_impact": null
+      },
+      "safe_manual_simulated": {
+        "mode": "SAFE_VALIDATION_MANUAL_SIMULATED",
+        "total_signals": 23,
+        "executed_trades": 0,
+        "blocked_trades": 23,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 23
+        },
+        "win_rate": 0.0,
+        "profit_factor": null,
+        "average_rr": 0.0,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 0.0,
+        "missed_winner_count": 20,
+        "blocked_loser_count": 3,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 0,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1289.88
+      },
+      "safe_auto_approval": {
+        "mode": "SAFE_VALIDATION_AUTO_APPROVAL",
+        "total_signals": 23,
+        "executed_trades": 0,
+        "blocked_trades": 23,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 23
+        },
+        "win_rate": 0.0,
+        "profit_factor": null,
+        "average_rr": 0.0,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 0.0,
+        "missed_winner_count": 20,
+        "blocked_loser_count": 3,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 0,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1289.88
+      }
+    },
+    {
+      "market": "FINNIFTY",
+      "symbol": "NSE:FINNIFTY-INDEX",
+      "legacy": {
+        "mode": "LEGACY",
+        "total_signals": 53,
+        "executed_trades": 53,
+        "blocked_trades": 0,
+        "blocked_reason_breakdown": {},
+        "win_rate": 84.91,
+        "profit_factor": 16.286,
+        "average_rr": 2.755,
+        "max_drawdown": 34.9,
+        "average_loss": -14.181,
+        "average_win": 41.058,
+        "missed_winner_count": 0,
+        "blocked_loser_count": 0,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 1734.17,
+        "slippage_impact": null
+      },
+      "safe_manual_simulated": {
+        "mode": "SAFE_VALIDATION_MANUAL_SIMULATED",
+        "total_signals": 53,
+        "executed_trades": 0,
+        "blocked_trades": 53,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 52,
+          "REVALIDATION:SIGNAL_EXPIRED": 1
+        },
+        "win_rate": 0.0,
+        "profit_factor": null,
+        "average_rr": 0.0,
+        "max_drawdown": 0.0,
+        "average_loss": 0.0,
+        "average_win": 0.0,
+        "missed_winner_count": 45,
+        "blocked_loser_count": 8,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": 0,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1734.17
+      },
+      "safe_auto_approval": {
+        "mode": "SAFE_VALIDATION_AUTO_APPROVAL",
+        "total_signals": 53,
+        "executed_trades": 1,
+        "blocked_trades": 52,
+        "blocked_reason_breakdown": {
+          "RR_DAMAGED_BELOW_MINIMUM": 52
+        },
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "average_rr": 3.0,
+        "max_drawdown": 2.5,
+        "average_loss": -2.5,
+        "average_win": 0.0,
+        "missed_winner_count": 45,
+        "blocked_loser_count": 7,
+        "stale_entry_prevention_count": 0,
+        "net_pnl": -2.5,
+        "slippage_impact": null,
+        "net_pnl_difference_vs_legacy": -1736.67
+      }
+    }
+  ]
+}

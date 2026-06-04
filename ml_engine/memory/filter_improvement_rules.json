@@ -1,0 +1,75 @@
+{
+  "version": "2026-05-24",
+  "rules": [
+    {
+      "id": "PREFER_NSE_1330",
+      "rule": "Prefer NSE 13:30 setups.",
+      "reason": "Historical role model N=101, WR=82.18%, PF=13.66.",
+      "confidence": 98,
+      "action": "shadow_tag_priority_only"
+    },
+    {
+      "id": "PREFER_DISPLACED_FVG",
+      "rule": "Prefer displaced FVG setups.",
+      "reason": "Displacement separates institutional expansion from low-quality imbalance.",
+      "confidence": 93,
+      "action": "shadow_score_boost_only"
+    },
+    {
+      "id": "PREFER_STRUCTURAL_SHORTS",
+      "rule": "Prefer SHORT setups when aligned with structure.",
+      "reason": "NSE short + displaced FVG produced N=133, WR=78.95%, PF=11.25.",
+      "confidence": 93,
+      "action": "shadow_role_model_match_only"
+    },
+    {
+      "id": "SKIP_NO_DISPLACEMENT_FVG",
+      "rule": "Skip no-displacement FVGs.",
+      "reason": "Weak FVGs do not reflect strong institutional repricing.",
+      "confidence": 88,
+      "action": "shadow_skip_recommendation_only"
+    },
+    {
+      "id": "SKIP_CHOPPY_REGIME",
+      "rule": "Skip CHOPPY regime.",
+      "reason": "Range/noise conditions dilute Silver Bullet precision.",
+      "confidence": 86,
+      "action": "shadow_skip_recommendation_only"
+    },
+    {
+      "id": "OB_OR_HIGHER_SCORE",
+      "rule": "Require OB overlap OR require higher score.",
+      "reason": "OB can help, but no-OB setups need stronger confluence.",
+      "confidence": 78,
+      "action": "shadow_warning_only"
+    },
+    {
+      "id": "FOREX_LOWER_CONFIDENCE",
+      "rule": "Treat Forex as lower confidence until more live/backtest data improves.",
+      "reason": "Best Forex role model has acceptable but smaller sample: N=78.",
+      "confidence": 76,
+      "action": "shadow_confidence_cap_only"
+    },
+    {
+      "id": "REJECT_TINY_SAMPLE_PERFECTION",
+      "rule": "Do not trust tiny-sample perfect results.",
+      "reason": "100% WR at N<30 is research noise, not a live rule.",
+      "confidence": 95,
+      "action": "exclude_from_role_model_promotion"
+    },
+    {
+      "id": "STORE_ROLE_MODEL_MISMATCH",
+      "rule": "Store every mismatch between live trade and role model.",
+      "reason": "Mismatch analysis teaches which missing condition matters most.",
+      "confidence": 90,
+      "action": "log_only"
+    },
+    {
+      "id": "POST_TRADE_EXPECTATION_COMPARE",
+      "rule": "After each trade, compare outcome against role model expectation.",
+      "reason": "The model must learn whether role-model similarity predicts live result.",
+      "confidence": 92,
+      "action": "audit_only"
+    }
+  ]
+}

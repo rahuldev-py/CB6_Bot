@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-05-24T22:17:10.643563",
+  "group_summary": {
+    "group": "FOREX",
+    "error": "no_valid_results",
+    "markets_covered": [],
+    "markets_failed": [
+      {
+        "market": "XAUUSD",
+        "symbol": "XAUUSD",
+        "error": "HISTORY_FETCH_FAILED",
+        "error_details": "Insufficient or empty historical data"
+      },
+      {
+        "market": "XAGUSD",
+        "symbol": "XAGUSD",
+        "error": "HISTORY_FETCH_FAILED",
+        "error_details": "Insufficient or empty historical data"
+      },
+      {
+        "market": "USOIL",
+        "symbol": "USOIL",
+        "error": "HISTORY_FETCH_FAILED",
+        "error_details": "Insufficient or empty historical data"
+      }
+    ]
+  },
+  "market_results": [
+    {
+      "market": "XAUUSD",
+      "symbol": "XAUUSD",
+      "error": "HISTORY_FETCH_FAILED",
+      "error_details": "Insufficient or empty historical data"
+    },
+    {
+      "market": "XAGUSD",
+      "symbol": "XAGUSD",
+      "error": "HISTORY_FETCH_FAILED",
+      "error_details": "Insufficient or empty historical data"
+    },
+    {
+      "market": "USOIL",
+      "symbol": "USOIL",
+      "error": "HISTORY_FETCH_FAILED",
+      "error_details": "Insufficient or empty historical data"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+
+        // ── Launch ────────────────────────────────────────────────────────────
+        {
+            "label": "CB6: Launch NSE Bot",
+            "type": "shell",
+            "command": "python",
+            "args": ["auto_token.py"],
+            "group": { "kind": "build", "isDefault": true },
+            "presentation": { "reveal": "always", "panel": "new" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CB6: Launch Forex Bot",
+            "type": "shell",
+            "command": "python",
+            "args": ["forex_main.py"],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "new" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CB6: Attach Watchdog",
+            "type": "shell",
+            "command": "python",
+            "args": ["watchdog.py", "--attach"],
+            "group": "build",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+
+        // ── Safety checks ─────────────────────────────────────────────────────
+        {
+            "label": "CB6: Syntax Check All",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-c",
+                "import ast, os, sys; errs=[]; [errs.append(f) or print(f'FAIL {f}: {e}') for f in [p for r,d,files in os.walk('.') for p in [os.path.join(r,f) for f in files if f.endswith('.py') and '__pycache__' not in os.path.join(r,f)]] for e in [None] if [ast.parse(open(f,encoding='utf-8').read()) for _ in [None]] and False or (lambda: (lambda ff=f: [None for e2 in [None] if not (lambda: ast.parse(open(ff,encoding='utf-8').read()))() ])())()]; print(f'All OK' if not errs else f'{len(errs)} errors')"
+            ],
+            "group": "test",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CB6: Syntax Check Core Files",
+            "type": "shell",
+            "command": "python",
+            "args": [
+                "-m", "py_compile",
+                "main.py",
+                "forex_main.py",
+                "auto_token.py",
+                "watchdog.py",
+                "scanner/live_price.py",
+                "scanner/data_fetcher.py",
+                "scanner/websocket_feed.py",
+                "data/truedata_feed.py",
+                "forex_engine/forex_worker.py",
+                "forex_engine/prop_firms/ftmo/ftmo_state.py",
+                "forex_engine/prop_firms/gft/gft_5k_2step.py"
+            ],
+            "group": { "kind": "test", "isDefault": true },
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CB6: Health Check",
+            "type": "shell",
+            "command": "python",
+            "args": ["_health_check.py"],
+            "group": "test",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CB6: Run Tests",
+            "type": "shell",
+            "command": "pytest",
+            "args": ["-q"],
+            "group": "test",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+
+        // ── Utilities ─────────────────────────────────────────────────────────
+        {
+            "label": "CB6: Register Telegram Commands",
+            "type": "shell",
+            "command": "python",
+            "args": ["set_bot_commands.py"],
+            "group": "none",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CB6: Show Today's Log (NSE)",
+            "type": "shell",
+            "command": "Get-Content",
+            "args": [
+                "logs/cb6_${input:today}.log",
+                "-Tail", "100"
+            ],
+            "group": "none",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        },
+        {
+            "label": "CB6: Show Forex Log",
+            "type": "shell",
+            "command": "Get-Content",
+            "args": ["logs/forex_main_stdout.log", "-Tail", "80"],
+            "group": "none",
+            "presentation": { "reveal": "always", "panel": "shared" },
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "today",
+            "type": "promptString",
+            "description": "Date in YYYYMMDD format",
+            "default": "20260604"
+        }
+    ]
+}

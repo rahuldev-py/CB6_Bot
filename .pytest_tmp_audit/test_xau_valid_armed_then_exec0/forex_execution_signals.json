@@ -1,0 +1,36 @@
+{
+  "signals": {
+    "1D6B30E08217": {
+      "signal_id": "1D6B30E08217",
+      "state": "EXECUTED",
+      "created_at": "2026-05-31T16:19:14.282466+00:00",
+      "updated_at": "2026-05-31T16:19:14.294047+00:00",
+      "symbol": "XAUUSD",
+      "direction": "BULLISH",
+      "planned_entry": 150.0,
+      "current_ltp": 151.0,
+      "stop_loss": 140.0,
+      "target": 170.0,
+      "spread_pct": 0.0002,
+      "status_reason": "TEST_EXECUTED",
+      "signal_age_seconds": 0,
+      "calculated_rr": 2.0,
+      "setup": {
+        "symbol": "XAUUSD",
+        "direction": "BULLISH",
+        "entry_signal": {
+          "entry": 150.0,
+          "stop_loss": 140.0,
+          "target1": 165.0,
+          "target2": 170.0,
+          "target3": 175.0
+        }
+      },
+      "proxy_symbol": "GC=F",
+      "proxy_note": "",
+      "symbol_normalized": "XAUUSD",
+      "entry_band_low": 147.0,
+      "entry_band_high": 153.0
+    }
+  }
+}

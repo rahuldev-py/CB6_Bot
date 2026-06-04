@@ -1,0 +1,205 @@
+{
+  "CHOCH_LONG": {
+    "trade_count": 38,
+    "win_count": 31,
+    "loss_count": 7,
+    "win_rate": 81.6,
+    "avg_r": 1.82,
+    "avg_r_winners": 2.45,
+    "avg_r_losers": -1.0,
+    "avg_hold_mins": 17.0,
+    "avg_fvg_size": 17.0,
+    "avg_sweep_quality": 7.2,
+    "avg_score": 15.1,
+    "winner_score_p25": 13.0,
+    "winner_score_p50": 15.0,
+    "winner_score_p75": 16.0,
+    "winner_sq_p25": 6.5,
+    "winner_sq_mean": 7.1,
+    "winner_fvg_p25": 7.8,
+    "winner_fvg_p75": 20.6,
+    "best_index": "NIFTY",
+    "worst_index": "FINNIFTY",
+    "fvg_wr_by_bucket": {
+      "Tiny 0-5": {
+        "n": 4,
+        "wr": 100.0,
+        "avg_r": 3.66
+      },
+      "Small 5-10": {
+        "n": 8,
+        "wr": 87.5,
+        "avg_r": 2.74
+      },
+      "Medium 10-20": {
+        "n": 12,
+        "wr": 83.3,
+        "avg_r": 1.25
+      },
+      "Large 20-35": {
+        "n": 12,
+        "wr": 66.7,
+        "avg_r": 1.1
+      },
+      "XLarge 35-50": {
+        "n": 2,
+        "wr": 100.0,
+        "avg_r": 2.12
+      }
+    },
+    "historical_confidence": 81.6,
+    "source": "backtest_90day_2026-03-04_2026-06-01",
+    "last_updated": "2026-06-01T19:10:33.911966"
+  },
+  "CHOCH_SHORT": {
+    "trade_count": 48,
+    "win_count": 39,
+    "loss_count": 9,
+    "win_rate": 81.2,
+    "avg_r": 1.48,
+    "avg_r_winners": 2.06,
+    "avg_r_losers": -1.0,
+    "avg_hold_mins": 20.8,
+    "avg_fvg_size": 17.6,
+    "avg_sweep_quality": 7.0,
+    "avg_score": 14.8,
+    "winner_score_p25": 14.0,
+    "winner_score_p50": 15.0,
+    "winner_score_p75": 16.0,
+    "winner_sq_p25": 6.5,
+    "winner_sq_mean": 7.0,
+    "winner_fvg_p25": 8.7,
+    "winner_fvg_p75": 27.4,
+    "best_index": "BANKNIFTY",
+    "worst_index": "MIDCPNIFTY",
+    "fvg_wr_by_bucket": {
+      "Tiny 0-5": {
+        "n": 9,
+        "wr": 77.8,
+        "avg_r": 0.89
+      },
+      "Small 5-10": {
+        "n": 9,
+        "wr": 88.9,
+        "avg_r": 1.89
+      },
+      "Medium 10-20": {
+        "n": 13,
+        "wr": 76.9,
+        "avg_r": 1.36
+      },
+      "Large 20-35": {
+        "n": 10,
+        "wr": 80.0,
+        "avg_r": 1.48
+      },
+      "XLarge 35-50": {
+        "n": 7,
+        "wr": 85.7,
+        "avg_r": 1.96
+      }
+    },
+    "historical_confidence": 81.2,
+    "source": "backtest_90day_2026-03-04_2026-06-01",
+    "last_updated": "2026-06-01T19:10:33.928097"
+  },
+  "BOS_LONG": {
+    "trade_count": 17,
+    "win_count": 13,
+    "loss_count": 4,
+    "win_rate": 76.5,
+    "avg_r": 1.69,
+    "avg_r_winners": 2.52,
+    "avg_r_losers": -1.0,
+    "avg_hold_mins": 17.8,
+    "avg_fvg_size": 18.4,
+    "avg_sweep_quality": 7.1,
+    "avg_score": 14.1,
+    "winner_score_p25": 12.0,
+    "winner_score_p50": 14.0,
+    "winner_score_p75": 15.0,
+    "winner_sq_p25": 7.0,
+    "winner_sq_mean": 7.2,
+    "winner_fvg_p25": 4.2,
+    "winner_fvg_p75": 25.2,
+    "best_index": "NIFTY",
+    "worst_index": "FINNIFTY",
+    "fvg_wr_by_bucket": {
+      "Tiny 0-5": {
+        "n": 4,
+        "wr": 100.0,
+        "avg_r": 4.22
+      },
+      "Small 5-10": {
+        "n": 4,
+        "wr": 100.0,
+        "avg_r": 1.81
+      },
+      "Medium 10-20": {
+        "n": 2,
+        "wr": 50.0,
+        "avg_r": 0.0
+      },
+      "Large 20-35": {
+        "n": 4,
+        "wr": 75.0,
+        "avg_r": 1.41
+      },
+      "XLarge 35-50": {
+        "n": 3,
+        "wr": 33.3,
+        "avg_r": -0.33
+      }
+    },
+    "historical_confidence": 76.5,
+    "source": "backtest_90day_2026-03-04_2026-06-01",
+    "last_updated": "2026-06-01T19:10:33.943592"
+  },
+  "BOS_SHORT": {
+    "trade_count": 17,
+    "win_count": 15,
+    "loss_count": 2,
+    "win_rate": 88.2,
+    "avg_r": 2.93,
+    "avg_r_winners": 3.46,
+    "avg_r_losers": -1.0,
+    "avg_hold_mins": 18.9,
+    "avg_fvg_size": 16.4,
+    "avg_sweep_quality": 7.1,
+    "avg_score": 14.2,
+    "winner_score_p25": 14.0,
+    "winner_score_p50": 14.0,
+    "winner_score_p75": 15.5,
+    "winner_sq_p25": 6.5,
+    "winner_sq_mean": 7.3,
+    "winner_fvg_p25": 6.9,
+    "winner_fvg_p75": 26.9,
+    "best_index": "NIFTY",
+    "worst_index": "BANKNIFTY",
+    "fvg_wr_by_bucket": {
+      "Tiny 0-5": {
+        "n": 4,
+        "wr": 75.0,
+        "avg_r": 5.5
+      },
+      "Small 5-10": {
+        "n": 4,
+        "wr": 100.0,
+        "avg_r": 3.14
+      },
+      "Medium 10-20": {
+        "n": 2,
+        "wr": 100.0,
+        "avg_r": 1.88
+      },
+      "Large 20-35": {
+        "n": 6,
+        "wr": 83.3,
+        "avg_r": 1.8
+      }
+    },
+    "historical_confidence": 88.2,
+    "source": "backtest_90day_2026-03-04_2026-06-01",
+    "last_updated": "2026-06-01T19:10:33.958573"
+  }
+}

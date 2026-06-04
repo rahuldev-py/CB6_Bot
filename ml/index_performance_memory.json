@@ -1,0 +1,118 @@
+{
+  "NIFTY": {
+    "CHOCH_LONG": {
+      "n": 13,
+      "wr": 100.0,
+      "avg_r": 1.7,
+      "total_pnl": 29772.0
+    },
+    "CHOCH_SHORT": {
+      "n": 10,
+      "wr": 90.0,
+      "avg_r": 1.37,
+      "total_pnl": 16302.0
+    },
+    "BOS_LONG": {
+      "n": 4,
+      "wr": 100.0,
+      "avg_r": 3.91,
+      "total_pnl": 12954.0
+    },
+    "BOS_SHORT": {
+      "n": 5,
+      "wr": 100.0,
+      "avg_r": 2.51,
+      "total_pnl": 12320.0
+    },
+    "best_fvg_bucket": "Large 20-35",
+    "total_trades": 32,
+    "win_rate": 96.9
+  },
+  "MIDCPNIFTY": {
+    "CHOCH_LONG": {
+      "n": 15,
+      "wr": 66.7,
+      "avg_r": 1.76,
+      "total_pnl": 30135.0
+    },
+    "CHOCH_SHORT": {
+      "n": 18,
+      "wr": 72.2,
+      "avg_r": 1.21,
+      "total_pnl": 31110.0
+    },
+    "BOS_LONG": {
+      "n": 3,
+      "wr": 100.0,
+      "avg_r": 2.0,
+      "total_pnl": 11115.0
+    },
+    "BOS_SHORT": {
+      "n": 7,
+      "wr": 100.0,
+      "avg_r": 4.54,
+      "total_pnl": 37744.0
+    },
+    "best_fvg_bucket": "Small 5-10",
+    "total_trades": 43,
+    "win_rate": 76.7
+  },
+  "FINNIFTY": {
+    "CHOCH_LONG": {
+      "n": 2,
+      "wr": 50.0,
+      "avg_r": 0.75,
+      "total_pnl": 1810.0
+    },
+    "CHOCH_SHORT": {
+      "n": 12,
+      "wr": 75.0,
+      "avg_r": 1.53,
+      "total_pnl": 33322.0
+    },
+    "BOS_LONG": {
+      "n": 7,
+      "wr": 57.1,
+      "avg_r": 0.57,
+      "total_pnl": 1550.0
+    },
+    "BOS_SHORT": {
+      "n": 3,
+      "wr": 66.7,
+      "avg_r": 1.33,
+      "total_pnl": 7800.0
+    },
+    "best_fvg_bucket": "Small 5-10",
+    "total_trades": 24,
+    "win_rate": 66.7
+  },
+  "BANKNIFTY": {
+    "CHOCH_LONG": {
+      "n": 8,
+      "wr": 87.5,
+      "avg_r": 2.38,
+      "total_pnl": 15773.0
+    },
+    "CHOCH_SHORT": {
+      "n": 8,
+      "wr": 100.0,
+      "avg_r": 2.19,
+      "total_pnl": 17109.0
+    },
+    "BOS_LONG": {
+      "n": 3,
+      "wr": 66.7,
+      "avg_r": 1.04,
+      "total_pnl": 2509.0
+    },
+    "BOS_SHORT": {
+      "n": 2,
+      "wr": 50.0,
+      "avg_r": 0.75,
+      "total_pnl": 1380.0
+    },
+    "best_fvg_bucket": "Medium 10-20",
+    "total_trades": 21,
+    "win_rate": 85.7
+  }
+}

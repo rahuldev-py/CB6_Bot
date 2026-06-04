@@ -1,0 +1,17 @@
+{
+    "recommendations": [
+        "anthropic.claude-code",
+        "openai.chatgpt",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy",
+        "ms-python.vscode-python-envs",
+        "ms-azuretools.vscode-containers",
+        "usernamehw.errorlens",
+        "oderwat.indent-rainbow",
+        "eamodio.gitlens",
+        "humao.rest-client",
+        "mohsen1.prettify-json",
+        "grapecity.gc-excelviewer"
+    ]
+}

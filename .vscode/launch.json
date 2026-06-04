@@ -1,0 +1,92 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+
+        // ── Main bots ─────────────────────────────────────────────────────────
+        {
+            "name": "CB6: NSE Bot (auto_token + launch)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/auto_token.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "CB6: Forex Bot (FTMO + GFT)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/forex_main.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "CB6: Watchdog (attach)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/watchdog.py",
+            "args": ["--attach"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+
+        // ── Debug individual engines ──────────────────────────────────────────
+        {
+            "name": "CB6: NSE main.py (debug)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": false
+        },
+        {
+            "name": "CB6: Forex main.py (debug)",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/forex_main.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": false
+        },
+        {
+            "name": "CB6: Current Python File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+
+        // ── Utilities ─────────────────────────────────────────────────────────
+        {
+            "name": "CB6: Set Telegram Commands",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/set_bot_commands.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        },
+        {
+            "name": "CB6: Orchestrator",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/orchestrator.py",
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal",
+            "envFile": "${workspaceFolder}/.env",
+            "justMyCode": true
+        }
+    ]
+}

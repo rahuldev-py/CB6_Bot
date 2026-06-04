@@ -1,0 +1,76 @@
+{
+  "_comment": "CB6 Quantum \u00e2\u20ac\u201d ML Engine Master Config. All flags default to OFF. Shadow mode only until manual review gate (Step 11) passes.",
+  "ml_enabled": false,
+  "ml_shadow_mode": true,
+  "ml_can_trade": false,
+  "ml_can_modify_risk": false,
+  "ml_can_block_trades": false,
+  "ml_can_close_trades": false,
+  "engines": {
+    "nse": {
+      "enabled": false,
+      "shadow_mode": true,
+      "min_trades_to_activate": 500,
+      "min_shadow_predictions_to_activate": 100
+    },
+    "forex": {
+      "enabled": false,
+      "shadow_mode": true,
+      "min_trades_to_activate": 500,
+      "min_shadow_predictions_to_activate": 100
+    }
+  },
+  "models": {
+    "dnn_trade_scorer": {
+      "enabled": false,
+      "version": null,
+      "path": null,
+      "min_confidence_threshold": 0.6,
+      "shadow_only": true
+    },
+    "rnn_sequence_model": {
+      "enabled": false,
+      "version": null,
+      "path": null,
+      "sequence_length": 50,
+      "shadow_only": true
+    },
+    "cnn_chart_vision": {
+      "enabled": false,
+      "version": null,
+      "path": null,
+      "research_only": true,
+      "shadow_only": true
+    }
+  },
+  "inference": {
+    "max_latency_ms": 50,
+    "timeout_ms": 200,
+    "fail_open": true,
+    "log_all_predictions": true
+  },
+  "training": {
+    "time_split_ratio": 0.8,
+    "walk_forward_folds": 5,
+    "random_seed": 42,
+    "nse_data_path": "ml_engine/data/nse/",
+    "forex_data_path": "ml_engine/data/forex/",
+    "label_output_path": "ml_engine/data/labeled/",
+    "model_save_path": "ml_engine/models/saved/"
+  },
+  "monitoring": {
+    "log_path": "ml_engine/monitoring/logs/",
+    "report_path": "ml_engine/reports/",
+    "drift_check_interval_trades": 50,
+    "performance_window_trades": 100
+  },
+  "activation_gate": {
+    "min_historical_trades": 500,
+    "min_live_shadow_predictions": 100,
+    "required_a_plus_gt_a": true,
+    "required_positive_expectancy_per_bucket": true,
+    "required_no_crash_days": 14,
+    "required_no_execution_delay": true,
+    "status": "NOT_READY"
+  }
+}

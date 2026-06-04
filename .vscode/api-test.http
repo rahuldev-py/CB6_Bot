@@ -1,0 +1,65 @@
+### CB6 Quantum — API Test File (REST Client)
+### Usage: Click "Send Request" above any request block
+### Set variables in .vscode/settings.json → rest-client.environmentVariables
+
+# ── Fyers ─────────────────────────────────────────────────────────────────────
+
+### Fyers: Get Profile
+GET https://api.fyers.in/api/v3/profile
+Authorization: Bearer {{$dotenv ACCESS_TOKEN}}
+
+###
+
+### Fyers: NIFTY Quote
+GET https://api.fyers.in/data-rest/v2/quotes/?symbols=NSE:NIFTY50-FUT
+Authorization: Bearer {{$dotenv ACCESS_TOKEN}}
+
+###
+
+### Fyers: BANKNIFTY Quote
+GET https://api.fyers.in/data-rest/v2/quotes/?symbols=NSE:NIFTYBANK-FUT
+Authorization: Bearer {{$dotenv ACCESS_TOKEN}}
+
+###
+
+### Fyers: FINNIFTY Historical (15min, last 5 days)
+GET https://api.fyers.in/data-rest/v2/history/?symbol=NSE:FINNIFTY-FUT&resolution=15&date_format=1&range_from=2026-06-01&range_to=2026-06-04&cont_flag=1
+Authorization: Bearer {{$dotenv ACCESS_TOKEN}}
+
+###
+
+# ── IIFL Capital ──────────────────────────────────────────────────────────────
+
+### IIFL: Profile (verify token is live)
+GET https://api.iiflcapital.com/v1/profile
+Authorization: Bearer {{$dotenv IIFL_USER_SESSION}}
+
+###
+
+### IIFL: Trading Limits
+GET https://api.iiflcapital.com/v1/limits
+Authorization: Bearer {{$dotenv IIFL_USER_SESSION}}
+
+###
+
+### IIFL: Open Orders
+GET https://api.iiflcapital.com/v1/orders
+Authorization: Bearer {{$dotenv IIFL_USER_SESSION}}
+
+###
+
+### IIFL: Positions
+GET https://api.iiflcapital.com/v1/positions
+Authorization: Bearer {{$dotenv IIFL_USER_SESSION}}
+
+###
+
+# ── TrueData ──────────────────────────────────────────────────────────────────
+
+### TrueData: Auth (get session token)
+POST https://api.truedata.in/users/login
+Content-Type: application/x-www-form-urlencoded
+
+username={{$dotenv TRUEDATA_USER}}&password={{$dotenv TRUEDATA_PASSWORD}}
+
+###

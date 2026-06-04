@@ -1,0 +1,249 @@
+================================================================
+  CB6 BOT -- WEEKLY PERFORMANCE REPORT (UPDATED)
+  Week: May 11-16, 2026  |  Generated: May 16, 2026 (Evening)
+  v2 -- Crypto reconciled against real Binance trade history
+================================================================
+
+================================================================
+  PART 1 -- INDIAN MARKET (NSE Index Futures | Paper Trading)
+  Capital: Rs 2,00,000  |  Strategy: ICT Silver Bullet
+================================================================
+
+--- DAY-WISE ACTIVITY ---
+
+Day        Date      Trades  Wins  Losses  Net PnL (Rs)
+---------------------------------------------------------
+Monday     May 11       0     --     --       Rs 0
+Tuesday    May 12       0     --     --       Rs 0
+Wednesday  May 13      32     25      7    +Rs 50,459
+Thursday   May 14       6      2      4     -Rs  6,716
+Friday     May 15       2      1      1    +Rs  2,945
+Saturday   May 16       0     --     --    Weekend
+---------------------------------------------------------
+WEEK TOTAL             40     28     12    +Rs 46,688
+---------------------------------------------------------
+
+--- TRADE STATISTICS ---
+
+Total Closed Trades      : 40
+Wins                     : 28
+Losses                   : 12
+Win Rate                 : 70.0%
+Gross Profit             : +Rs 81,317
+Gross Loss               : -Rs 34,630
+Net PnL                  : +Rs 46,687
+Return on Capital (Paper): +23.3% on Rs 2,00,000
+
+--- PROFIT / LOSS BREAKDOWN ---
+
+Avg Profit per Win       : +Rs 2,904
+Avg Loss per Loss        : -Rs 2,886
+Highest Single Profit    : +Rs 7,851
+Max Single Loss          : -Rs 6,502
+Profit Factor            :  2.35x (Gross Win / Gross Loss)
+
+Best Trade : BANKNIFTY26MAYFUT BEARISH
+             May 13, 15:22-15:25
+             Entry 53811.7 -> Exit 53550.0 | Qty 30 | +Rs 7,851
+
+Worst Trade: BANKNIFTY26MAYFUT BULLISH
+             May 14, 09:15-09:18
+             Entry 53643.7 -> SL 53442.6   | Qty 30 | -Rs 6,502
+
+--- VOLUME BREAKDOWN ---
+
+Index         Lot Size   Trades   Total Units
+----------------------------------------------
+NIFTY            65        11        715
+BANKNIFTY        30         7        210
+FINNIFTY         60        11        660
+MIDCPNIFTY      120        11      1,320
+----------------------------------------------
+TOTAL                      40      2,905 units
+----------------------------------------------
+
+--- STRATEGY BREAKDOWN ---
+
+By Direction:
+Direction    Trades   Wins   Losses   Win Rate
+-----------------------------------------------
+BULLISH        21      16       5      76.2%
+BEARISH        19      12       7      63.2%
+
+By Session Window:
+Session                     Trades   Outcome
+-----------------------------------------------
+Morning  09:15-11:30          7      1W / 6L  (Poor)
+Afternoon 13:30-15:30        33     27W / 6L  (Dominant)
+
+By Timeframe:
+Timeframe   Trades   Wins   Win Rate
+---------------------------------------
+5min          38      27     71.0%
+15min          2       1     50.0%
+
+--- OPEN POSITIONS (Carried from prior week, May 8) ---
+
+Symbol       Direction   Status        Running PnL
+----------------------------------------------------
+APOLLOHOSP   BUY         OPEN          +Rs 165
+BPCL         SELL        OPEN (T1 hit) +Rs 105
+LT           SELL        OPEN (BE)     Rs 0
+HINDUNILVR   BUY         OPEN          -Rs 25
+----------------------------------------------------
+Net Open PnL                           +Rs 245
+----------------------------------------------------
+
+================================================================
+  PART 2 -- CRYPTO MARKET (ETH/USDT Binance Perpetual | LIVE)
+  Capital: $9.7996 USDT  |  Strategy: ICT Silver Bullet 5m
+  *** RECONCILED AGAINST REAL BINANCE TRADE HISTORY ***
+================================================================
+
+--- BINANCE-CONFIRMED TRADE LOG (May 14-15) ---
+
+#  Date        Dir       Setup   Score  Entry    Exit     Result  PnL
+------------------------------------------------------------------------
+1  May14 17:45 BEARISH   BOS      11   2252.13  2262.32  LOSS   -$0.53  (SL hit)
+2  May14 18:50 BULLISH   CHoCH    12   2255.02  2287.13  WIN    +$1.22  (T3 full run 3.67R)
+3  May14 22:00 BULLISH   BOS      11   2307.27  2307.49  LOSS   -$0.08  (near breakeven)
+4  May15 11:35 BEARISH   BOS      10   2248.33  2217.67  WIN    +$0.48  (Manual close)
+5  May15 21:15 BULLISH   CHoCH    11   2217.09  2224.93  WIN    +$0.26  (Manual close)
+------------------------------------------------------------------------
+No open positions as of May 16 (Weekend)
+
+--- RECONCILIATION CORRECTIONS vs EARLIER REPORT ---
+
+Trade #3 (May14 22:00) -- MAJOR CORRECTION:
+  Bot had recorded : Exit 2264.57 | PnL -$1.54 (SL hit)
+  Binance actual   : Exit 2307.49 | PnL -$0.08 (barely moved)
+  Root cause       : Bot's position monitor mis-tracked exit price.
+                     SL at 2294.76 was NEVER actually triggered.
+                     Trade closed at near-entry -- loss is fees only.
+
+Trade #4 (May15 11:35) -- Minor correction:
+  Bot had recorded : Entry 2248.06 | Exit 2217.33 | PnL +$0.52
+  Binance actual   : Entry 2248.33 | Exit 2217.67 | PnL +$0.48
+  Root cause       : Entry price fetched from mark vs fill price.
+
+Trade #5 (May15 21:15) -- Trade was STUCK as OPEN:
+  Bot had recorded : OPEN (never marked closed)
+  Binance actual   : Closed 22:03:41 | Exit 2224.93 | PnL +$0.26
+  Root cause       : Engine shutdown before exit was recorded in state.
+
+--- CRYPTO STATISTICS (BINANCE-CONFIRMED) ---
+
+Total Closed Trades   : 5
+Wins                  : 3
+Losses                : 2
+Win Rate              : 60.0%     (was 50% in morning report)
+Gross Win             : +$1.96    ($1.22 + $0.48 + $0.26)
+Gross Loss            : -$0.61    ($0.53 + $0.08)
+Net PnL (gross)       : +$1.35
+Net PnL (after fees)  : +$0.7460  (Binance wallet: $9.0536 -> $9.7996)
+Account Return        : +8.24%
+
+Avg Win               : +$0.65
+Avg Loss              : -$0.31    (was -$1.04 before correction)
+Best Trade            : +$1.22 (CHoCH T3 at 3.67R, May 14 18:50)
+Max Loss              : -$0.53 (BOS SL at -1.06R, May 14 17:45)
+Starting Capital      : $9.0536
+Current Capital       : $9.7996   (Binance wallet balance, confirmed)
+
+--- SETUP TYPE ANALYSIS (UPDATED) ---
+
+Setup Type   Trades   W/L   Win Rate   Avg PnL
+-------------------------------------------------
+CHoCH          2      2W    100%       +$0.74
+BOS            3     1W/2L   33%       +$0.29
+
+Note: Both CHoCH setups won. Trade #5 (CHoCH) was missed as
+"OPEN" -- now confirmed +$0.26. BOS performance still weak.
+Previous max-loss entry (-$1.54) was a mis-track; actual BOS
+worst loss is only -$0.53. Strategy is healthier than reported.
+
+--- WHAT CHANGED FROM MORNING REPORT ---
+
+Metric            Morning Report    Updated (Binance)   Change
+----------------------------------------------------------------
+Closed Trades          4                  5            +1 trade
+Win Rate             50.0%              60.0%          +10%
+Gross Win            +$1.74             +$1.96         +$0.22
+Gross Loss           -$2.07             -$0.61         +$1.46 recovered
+Net PnL              -$0.33             +$1.35         +$1.68
+Avg Loss             -$1.04             -$0.31         +$0.73 better
+Max Loss             -$1.54             -$0.53         +$1.01 better
+Account Change       -0.03%             +8.24%         FULL REVERSAL
+
+================================================================
+  COMBINED WEEKLY SUMMARY (UPDATED)
+================================================================
+
+Market                   Trades   Win Rate   Net PnL       Impact
+-------------------------------------------------------------------
+Indian F&O (Paper)         40      70.0%    +Rs 46,687   +23.3% on Rs 2L
+Crypto ETH/USDT (Live)      5      60.0%    +$0.7460     +8.24% on $9.05
+-------------------------------------------------------------------
+
+================================================================
+  KEY TAKEAWAYS (UPDATED)
+================================================================
+
+1. CRYPTO WIN RATE IS 60%, NOT 50%
+   The morning report had one trade stuck as OPEN and another
+   with a bot mis-tracked exit (-$1.54). After Binance match:
+   3W / 2L = 60% WR. Strategy is performing above gate.
+
+2. THE -$1.54 LOSS WAS A BOT BUG, NOT A REAL LOSS
+   Trade CRYPTO_20260514220029 (BOS LONG, May 14 22:00) was
+   logged as -$1.54 SL hit at 2264.57. Binance confirms exit
+   was 2307.49 -- barely above entry 2307.27. Actual loss: -$0.08
+   (fees only). SL at 2294.76 was never triggered.
+   Fix needed: position monitor exit tracking in crypto_worker.py
+
+3. CHOCH SETUPS: 2/2 = 100% WIN RATE THIS WEEK
+   Both CHoCH entries (score 11-12) won. One hit T3 at 3.67R.
+   The other was manually closed early but still profitable.
+   CHoCH remains the highest-quality entry signal.
+
+4. BOS SETUPS: 1/3 = 33% WIN RATE THIS WEEK
+   All 3 BOS entries struggled. Only the short (May 15) made
+   money via manual close. BOS needs extra confluence gate.
+
+5. INDIAN BOT STILL DOMINANT
+   +Rs 46,687 paper profit on Rs 2L capital (+23.3%) in 3 active
+   trading days. May 13 afternoon window delivered 25 of 28 wins.
+   Morning session remains the only weak spot (1W/6L).
+
+6. ACCOUNT RECONCILED AND SYNCED
+   crypto_paper_state.json and crypto_memory.json fully updated
+   to match real Binance history. Dashboard now shows accurate
+   data with Binance Live fills confirmed.
+
+================================================================
+  CORRECTIONS LOG (for audit trail)
+================================================================
+
+File: data/crypto_paper_state.json
+  - CRYPTO_20260515211529: moved from open_trades to closed_trades
+    entry 2216.99->2217.09, exit (null)->2224.93, pnl 0->+0.26
+  - CRYPTO_20260515113522: entry 2248.06->2248.33,
+    exit 2217.33->2217.67, pnl +0.52->+0.48
+  - CRYPTO_20260514220029: entry 2307.35->2307.27,
+    exit 2264.57->2307.49, pnl -1.54->-0.08,
+    exit_time 2026-05-15T07:55->2026-05-14T22:44
+  - capital updated: 9.05->9.7996 (Binance wallet confirmed)
+  - open_trades: [] (empty -- no live positions)
+
+File: data/crypto_memory.json
+  - CRYPTO_20260514220029: rr_achieved -3.42->-0.18, pnl -1.54->-0.08
+  - CRYPTO_20260515113522: outcome null->WIN, rr 0->1.12, pnl 0->0.48
+  - CRYPTO_20260515211529: outcome null->WIN, rr 0->0.58, pnl 0->0.26
+
+================================================================
+  Report generated by CB6 Bot
+  Data verified against: Binance USDT-M Futures API
+  Correction timestamp : 2026-05-16 (Evening)
+  Indian figures = Paper Trade simulation
+  Crypto figures = LIVE Binance Futures ($9.05 USDT capital)
+================================================================

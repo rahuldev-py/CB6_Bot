@@ -1,0 +1,208 @@
+{
+  "generated_at": "2026-06-01T08:08:55Z",
+  "manifest_path": "data\\futures\\historical\\manifest.json",
+  "manifest_present": false,
+  "overall_status": "FAIL",
+  "files": [
+    {
+      "symbol": "MES",
+      "timeframe": "1m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\MES_1m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\MES_1m_2021_present.csv"
+      ],
+      "warnings": []
+    },
+    {
+      "symbol": "MES",
+      "timeframe": "3m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\MES_3m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\MES_3m_2021_present.csv"
+      ],
+      "warnings": []
+    },
+    {
+      "symbol": "MNQ",
+      "timeframe": "1m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\MNQ_1m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\MNQ_1m_2021_present.csv"
+      ],
+      "warnings": []
+    },
+    {
+      "symbol": "MNQ",
+      "timeframe": "3m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\MNQ_3m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\MNQ_3m_2021_present.csv"
+      ],
+      "warnings": []
+    },
+    {
+      "symbol": "MGC",
+      "timeframe": "1m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\MGC_1m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\MGC_1m_2021_present.csv"
+      ],
+      "warnings": []
+    },
+    {
+      "symbol": "MGC",
+      "timeframe": "3m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\MGC_3m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\MGC_3m_2021_present.csv"
+      ],
+      "warnings": []
+    },
+    {
+      "symbol": "CL",
+      "timeframe": "1m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\CL_1m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\CL_1m_2021_present.csv"
+      ],
+      "warnings": []
+    },
+    {
+      "symbol": "CL",
+      "timeframe": "3m",
+      "source": "databento",
+      "file_path": "data\\futures\\historical\\CL_3m_2021_present.csv",
+      "exists": false,
+      "status": "FAIL",
+      "row_count": 0,
+      "date_coverage": {
+        "first_timestamp": "",
+        "last_timestamp": ""
+      },
+      "largest_timestamp_gap": "",
+      "gap_count": 0,
+      "duplicate_timestamps": 0,
+      "null_ohlcv_count": 0,
+      "invalid_ohlc_count": 0,
+      "zero_volume_bar_count": 0,
+      "manifest_row_count": null,
+      "manifest_match": null,
+      "errors": [
+        "file not found: C:\\cb6_bot\\data\\futures\\historical\\CL_3m_2021_present.csv"
+      ],
+      "warnings": []
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+trade_id,symbol,contract,direction,entry_time,exit_time,entry_price,exit_price,contracts,point_value,commission,slippage,pnl_gross,pnl_net,r_multiple,stop_loss,target,session,tags,open
+1574dfbf,MGC,MGCV24,LONG,2024-08-28 05:00:00+00:00,2024-08-28 06:00:00+00:00,2544.9,2538.4999000000003,1,10.0,2.25,1.0,-64.00099999999838,-70.50099999999838,-1.12,2538.5999,2563.4005,LONDON_OPEN,[],False

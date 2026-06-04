@@ -1,0 +1,2 @@
+trade_id,symbol,contract,direction,entry_time,exit_time,entry_price,exit_price,contracts,point_value,commission,slippage,pnl_gross,pnl_net,r_multiple,stop_loss,target,session,tags,open
+2487f9b3,MNQ,MNQM26,SHORT,2026-05-19 16:00:00+00:00,2026-05-19 23:00:00+00:00,28941.25,28950.5,1,2.0,2.25,0.5,-18.5,-24.0,-0.06,29127.0,28385.0,NY_AFTERNOON,[],False

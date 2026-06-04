@@ -1,0 +1,173 @@
+{
+  "_comment": "CB6 Quantum \u00e2\u20ac\u201d ML Model Registry. Tracks all trained model versions, metrics, and activation status. Updated automatically by training pipeline.",
+  "registry_version": "1.0.0",
+  "last_updated": "2026-05-23T21:53:32.795795",
+  "models": {
+    "dnn_trade_scorer_nse": {
+      "model_id": "dnn_trade_scorer_nse",
+      "description": "DNN scoring model for NSE Silver Bullet setups. Outputs win_probability, expected_r, confidence, trade_grade.",
+      "architecture": "DNN",
+      "engine": "nse",
+      "status": "TRAINED",
+      "versions": [
+        {
+          "version_id": "dnn_nse_v1_20260523_2144",
+          "trained_at": "20260523_2144",
+          "train_samples": 603,
+          "val_samples": 151,
+          "accuracy": 0.5364,
+          "auc": 0.37,
+          "f1": 0.6983,
+          "brier_score": 0.3396,
+          "expected_r_mae": 1.5929,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\dnn_nse_v1_20260523_2144",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
+        }
+      ],
+      "active_version": null,
+      "activation_gate_passed": false
+    },
+    "dnn_trade_scorer_forex": {
+      "model_id": "dnn_trade_scorer_forex",
+      "description": "DNN scoring model for Forex Silver Bullet setups. Outputs win_probability, expected_r, confidence, trade_grade.",
+      "architecture": "DNN",
+      "engine": "forex",
+      "status": "TRAINED",
+      "versions": [
+        {
+          "version_id": "dnn_forex_v1_20260523_2144",
+          "trained_at": "20260523_2144",
+          "train_samples": 215,
+          "val_samples": 54,
+          "accuracy": 0.537,
+          "auc": 0.5503,
+          "f1": 0.6753,
+          "brier_score": 0.2542,
+          "expected_r_mae": 1.5877,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\dnn_forex_v1_20260523_2144",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
+        }
+      ],
+      "active_version": null,
+      "activation_gate_passed": false
+    },
+    "rnn_sequence_nse": {
+      "model_id": "rnn_sequence_nse",
+      "description": "LSTM sequence model on NSE candle history. Outputs continuation_prob, reversal_prob, volatility_expansion_prob.",
+      "architecture": "LSTM",
+      "engine": "nse",
+      "sequence_length": 50,
+      "status": "TRAINED",
+      "versions": [
+        {
+          "version_id": "rnn_nse_v1_20260523_2148",
+          "trained_at": "20260523_2148",
+          "train_samples": 603,
+          "val_samples": 151,
+          "seq_len": 10,
+          "accuracy": 0.5364,
+          "auc": 0.5997,
+          "f1": 0.6983,
+          "brier_score": 0.284,
+          "expected_r_mae": 1.6387,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\rnn_nse_v1_20260523_2148",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
+        },
+        {
+          "version_id": "rnn_forex_v1_20260523_2148",
+          "trained_at": "20260523_2148",
+          "train_samples": 215,
+          "val_samples": 54,
+          "seq_len": 10,
+          "accuracy": 0.537,
+          "auc": 0.5076,
+          "f1": 0.6988,
+          "brier_score": 0.2488,
+          "expected_r_mae": 1.6658,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\rnn_forex_v1_20260523_2148",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
+        }
+      ],
+      "active_version": null,
+      "activation_gate_passed": false
+    },
+    "rnn_sequence_forex": {
+      "model_id": "rnn_sequence_forex",
+      "description": "LSTM sequence model on Forex candle history.",
+      "architecture": "LSTM",
+      "engine": "forex",
+      "sequence_length": 50,
+      "status": "NOT_TRAINED",
+      "versions": [],
+      "active_version": null,
+      "activation_gate_passed": false
+    },
+    "cnn_chart_vision": {
+      "model_id": "cnn_chart_vision",
+      "description": "RESEARCH ONLY. CNN chart image classifier. Detects FVG/OB/sweep/MSS from rendered candle charts.",
+      "architecture": "CNN",
+      "engine": "research",
+      "status": "RESEARCH",
+      "research_only": true,
+      "versions": [
+        {
+          "version_id": "cnn_nse_v1_20260523_2153",
+          "trained_at": "20260523_2153",
+          "train_samples": 603,
+          "val_samples": 151,
+          "data_source": "synthetic",
+          "research_only": true,
+          "auc": 0.2151,
+          "f1": 0.7673,
+          "brier_score": 0.2723,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\cnn_nse_v1_20260523_2153"
+        },
+        {
+          "version_id": "cnn_forex_v1_20260523_2153",
+          "trained_at": "20260523_2153",
+          "train_samples": 215,
+          "val_samples": 54,
+          "data_source": "synthetic",
+          "research_only": true,
+          "auc": 0.4212,
+          "f1": 0.7442,
+          "brier_score": 0.2425,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\cnn_forex_v1_20260523_2153"
+        }
+      ],
+      "active_version": null,
+      "activation_gate_passed": false
+    }
+  },
+  "version_schema": {
+    "version_id": "string \u00e2\u20ac\u201d e.g. dnn_nse_v1_20260523",
+    "trained_at": "ISO datetime",
+    "train_samples": "int",
+    "val_samples": "int",
+    "accuracy": "float",
+    "precision": "float",
+    "recall": "float",
+    "f1": "float",
+    "auc": "float",
+    "brier_score": "float",
+    "expected_r_mae": "float",
+    "profit_factor_by_bucket": "dict",
+    "expectancy_by_bucket": "dict",
+    "feature_importance": "dict",
+    "model_path": "string",
+    "shadow_predictions": "int",
+    "shadow_accuracy": "float",
+    "activation_gate_passed": "bool",
+    "notes": "string"
+  }
+}

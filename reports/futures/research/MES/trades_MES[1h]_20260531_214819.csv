@@ -1,0 +1,2 @@
+trade_id,symbol,contract,direction,entry_time,exit_time,entry_price,exit_price,contracts,point_value,commission,slippage,pnl_gross,pnl_net,r_multiple,stop_loss,target,session,tags,open
+5584b65e,MES,MESU24,LONG,2024-06-28 16:00:00+00:00,2024-06-28 18:00:00+00:00,5546.0,5534.75,1,5.0,2.25,1.25,-56.25,-63.25,-1.15,5535.0,5578.0,NY_AFTERNOON,[],False

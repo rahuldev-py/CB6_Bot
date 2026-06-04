@@ -1,0 +1,166 @@
+{
+  "generated_at": "2026-05-23T22:27:45.405850",
+  "python": "3.13.13 (tags/v3.13.13:01104ce, Apr  7 2026, 19:25:48) [MSC v.1944 64 bit (AMD64)]",
+  "root": "C:\\cb6_bot",
+  "checks": [
+    {
+      "name": "dependency_versions",
+      "status": "WARN",
+      "detail": "7 conflict(s) reported",
+      "data": {
+        "versions": {
+          "fyers-apiv3": "3.1.12",
+          "truedata-ws": "5.0.11",
+          "MetaTrader5": "5.0.5735",
+          "requests": "2.33.1",
+          "aiohttp": "3.11.18",
+          "websocket-client": "1.9.0",
+          "setuptools": "81.0.0",
+          "aws-lambda-powertools": "3.28.0",
+          "lz4": "4.4.5",
+          "torch": "2.12.0",
+          "scikit-learn": "1.8.0"
+        },
+        "conflicts": [
+          "fyers-apiv3 3.1.12 requires asyncio, which is not installed.",
+          "fyers-apiv3 3.1.12 has requirement aiohttp==3.9.3, but you have aiohttp 3.11.18.",
+          "fyers-apiv3 3.1.12 has requirement aws_lambda_powertools==1.25.5, but you have aws-lambda-powertools 3.28.0.",
+          "fyers-apiv3 3.1.12 has requirement requests==2.31.0, but you have requests 2.33.1.",
+          "fyers-apiv3 3.1.12 has requirement setuptools==68.0.0, but you have setuptools 81.0.0.",
+          "fyers-apiv3 3.1.12 has requirement websocket-client==1.6.1, but you have websocket-client 1.9.0.",
+          "truedata-ws 5.0.11 has requirement lz4==3.1.3, but you have lz4 4.4.5."
+        ]
+      }
+    },
+    {
+      "name": "broker_runtime_imports",
+      "status": "PASS",
+      "detail": "All broker/runtime modules import",
+      "data": {
+        "loaded": {
+          "fyers_apiv3": true,
+          "truedata_ws": true,
+          "MetaTrader5": true,
+          "websocket": true,
+          "requests": true,
+          "aiohttp": true
+        },
+        "failures": {}
+      }
+    },
+    {
+      "name": "fyers_login",
+      "status": "PASS",
+      "detail": "Fyers profile accepted token",
+      "data": {
+        "code": 200,
+        "s": "ok",
+        "name": "RAHUL ARVINDBHAI PANCHAL",
+        "fy_id": "*******"
+      }
+    },
+    {
+      "name": "fyers_quote_fetch",
+      "status": "PASS",
+      "detail": "NSE:NIFTY50-INDEX LTP=23719.3",
+      "data": {
+        "symbol": "NSE:NIFTY50-INDEX",
+        "ltp": 23719.3,
+        "code": 200,
+        "s": "ok"
+      }
+    },
+    {
+      "name": "fyers_websocket",
+      "status": "PASS",
+      "detail": "Connected, subscribed, and received a tick",
+      "data": {
+        "symbol": "NSE:NIFTY50-INDEX",
+        "tick": {
+          "type": "cn",
+          "code": 200,
+          "message": "Authentication done",
+          "s": "ok"
+        }
+      }
+    },
+    {
+      "name": "truedata_connection",
+      "status": "WARN",
+      "detail": "TrueData connect did not complete before timeout",
+      "data": {
+        "events": []
+      }
+    },
+    {
+      "name": "mt5_connection",
+      "status": "PASS",
+      "detail": "MT5 account_info returned",
+      "data": {
+        "login": 1513418788,
+        "server": "FTMO-Demo",
+        "balance": 9977.58,
+        "terminal_connected": true,
+        "sample_tick": {
+          "XAGUSD": {
+            "bid": 75.4,
+            "ask": 75.477
+          }
+        }
+      }
+    },
+    {
+      "name": "nse_engine_import",
+      "status": "PASS",
+      "detail": "Imported main without starting engine",
+      "data": {}
+    },
+    {
+      "name": "forex_entry_import",
+      "status": "PASS",
+      "detail": "Imported forex_engine.forex_main without starting engine",
+      "data": {}
+    },
+    {
+      "name": "forex_worker_import",
+      "status": "PASS",
+      "detail": "Imported forex_engine.forex_worker without starting engine",
+      "data": {}
+    }
+  ],
+  "environment_recommendation": {
+    "cb6_live_env": {
+      "purpose": "Live trading runtime only: Fyers / TrueData / MT5 / execution",
+      "rules": [
+        "Use broker-compatible pinned versions.",
+        "Do not install torch/scikit-learn here.",
+        "Run NSE/Forex live engines only from this env."
+      ],
+      "known_pins_from_current_conflicts": {
+        "fyers-apiv3": "3.1.12",
+        "aiohttp": "3.9.3",
+        "aws-lambda-powertools": "1.25.5",
+        "requests": "2.31.0",
+        "setuptools": "68.0.0",
+        "websocket-client": "1.6.1",
+        "truedata-ws": "5.0.11",
+        "lz4": "3.1.3",
+        "MetaTrader5": "5.0.5735"
+      }
+    },
+    "cb6_ml_env": {
+      "purpose": "ML training/research only: Torch / sklearn / feature building",
+      "rules": [
+        "No broker login required.",
+        "No live engine starts.",
+        "Can install torch/scikit-learn without risking broker SDK pins."
+      ],
+      "suggested_core": {
+        "torch": "installed in current env as 2.12.0+cpu",
+        "scikit-learn": "installed in current env as 1.8.0",
+        "pandas": "match project data pipeline",
+        "numpy": "match torch/sklearn compatibility"
+      }
+    }
+  }
+}

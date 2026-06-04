@@ -1,0 +1,70 @@
+[importlinter]
+root_packages =
+    core
+    scanner
+    trader
+    forex_engine
+    crypto_engine
+    data
+    utils
+    communications
+    backtest
+    ml
+    ml_engine
+    provider
+
+[importlinter:contract:no-upward-imports]
+name = Scanner must not import from trader or execution layer
+type = forbidden
+source_modules =
+    scanner
+forbidden_modules =
+    trader
+    forex_engine.prop_firms
+    crypto_engine.crypto_worker
+
+[importlinter:contract:no-ui-to-broker]
+name = Dashboard and Telegram must not call broker adapters directly
+type = forbidden
+source_modules =
+    communications
+forbidden_modules =
+    forex_engine.mt5.mt5_connector
+    trader.live_trader
+    crypto_engine.binance_adapter
+
+[importlinter:contract:no-backtest-live-exec]
+name = Backtest must not import live execution
+type = forbidden
+source_modules =
+    backtest
+forbidden_modules =
+    trader.live_trader
+    forex_engine.mt5.mt5_connector
+    crypto_engine.binance_adapter
+
+[importlinter:contract:no-ml-to-execution]
+name = ML pipeline must not touch execution layer
+type = forbidden
+source_modules =
+    ml
+    ml_engine
+forbidden_modules =
+    trader.live_trader
+    trader.order_manager
+    forex_engine.mt5.mt5_connector
+    crypto_engine.binance_adapter
+
+[importlinter:contract:core-no-engine-imports]
+name = core must not import engine-specific modules
+type = forbidden
+source_modules =
+    core
+forbidden_modules =
+    forex_engine
+    crypto_engine
+    scanner
+    trader
+    backtest
+    ml
+    ml_engine

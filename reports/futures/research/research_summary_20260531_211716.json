@@ -1,0 +1,230 @@
+[
+  {
+    "symbol": "MES",
+    "year": 2024,
+    "status": "OK",
+    "total_trades": 211,
+    "win_rate_pct": 74.4,
+    "profit_factor": 12.994,
+    "net_pnl": 21340.5,
+    "gross_profit": 23119.75,
+    "gross_loss": 1779.25,
+    "avg_win": 147.26,
+    "avg_loss": 32.95,
+    "expectancy": 101.14,
+    "max_drawdown": 168.5,
+    "sharpe": 6.719,
+    "avg_r": 0.37,
+    "commissions": 949.5,
+    "avg_duration_min": 131.8,
+    "session_breakdown": {
+      "LONDON_OPEN": {
+        "trades": 139,
+        "wins": 96,
+        "pnl": 1194.5,
+        "win_rate": 0.6906
+      },
+      "NY_AFTERNOON": {
+        "trades": 64,
+        "wins": 53,
+        "pnl": 20132.0,
+        "win_rate": 0.8281
+      },
+      "NY_OPEN": {
+        "trades": 3,
+        "wins": 3,
+        "pnl": 5.25,
+        "win_rate": 1.0
+      },
+      "NY_LUNCH": {
+        "trades": 5,
+        "wins": 5,
+        "pnl": 8.75,
+        "win_rate": 1.0
+      }
+    },
+    "mff_simulation": {
+      "would_pass": true,
+      "profit_target": 1500.0,
+      "total_pnl": 21340.5,
+      "max_drawdown_vs_limit": "$168.50 vs $1000.0",
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 92,
+      "best_day_pnl": 2225.0,
+      "avg_daily_pnl": 231.96,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MNQ",
+    "year": 2024,
+    "status": "OK",
+    "total_trades": 218,
+    "win_rate_pct": 49.5,
+    "profit_factor": 23.086,
+    "net_pnl": 47596.0,
+    "gross_profit": 49751.0,
+    "gross_loss": 2155.0,
+    "avg_win": 460.66,
+    "avg_loss": 19.59,
+    "expectancy": 218.33,
+    "max_drawdown": 693.5,
+    "sharpe": 8.756,
+    "avg_r": 0.53,
+    "commissions": 981.0,
+    "avg_duration_min": 129.4,
+    "session_breakdown": {
+      "NY_AFTERNOON": {
+        "trades": 66,
+        "wins": 57,
+        "pnl": 36469.5,
+        "win_rate": 0.8636
+      },
+      "LONDON_OPEN": {
+        "trades": 137,
+        "wins": 48,
+        "pnl": 9940.0,
+        "win_rate": 0.3504
+      },
+      "NY_OPEN": {
+        "trades": 6,
+        "wins": 0,
+        "pnl": -18.0,
+        "win_rate": 0.0
+      },
+      "NY_LUNCH": {
+        "trades": 9,
+        "wins": 3,
+        "pnl": 1204.5,
+        "win_rate": 0.3333
+      }
+    },
+    "mff_simulation": {
+      "would_pass": true,
+      "profit_target": 1500.0,
+      "total_pnl": 47596.0,
+      "max_drawdown_vs_limit": "$693.50 vs $1000.0",
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 88,
+      "best_day_pnl": 4374.5,
+      "avg_daily_pnl": 540.86,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MGC",
+    "year": 2024,
+    "status": "OK",
+    "total_trades": 187,
+    "win_rate_pct": 84.0,
+    "profit_factor": 10.781,
+    "net_pnl": 22964.48,
+    "gross_profit": 25312.47,
+    "gross_loss": 2347.99,
+    "avg_win": 161.23,
+    "avg_loss": 78.27,
+    "expectancy": 122.81,
+    "max_drawdown": 694.49,
+    "sharpe": 9.603,
+    "avg_r": 1.08,
+    "commissions": 841.5,
+    "avg_duration_min": 218.5,
+    "session_breakdown": {
+      "NY_AFTERNOON": {
+        "trades": 50,
+        "wins": 43,
+        "pnl": 9573.96,
+        "win_rate": 0.86
+      },
+      "NY_OPEN": {
+        "trades": 12,
+        "wins": 11,
+        "pnl": 384.0,
+        "win_rate": 0.9167
+      },
+      "LONDON_OPEN": {
+        "trades": 119,
+        "wins": 98,
+        "pnl": 12689.5,
+        "win_rate": 0.8235
+      },
+      "NY_LUNCH": {
+        "trades": 6,
+        "wins": 5,
+        "pnl": 316.99,
+        "win_rate": 0.8333
+      }
+    },
+    "mff_simulation": {
+      "would_pass": true,
+      "profit_target": 1500.0,
+      "total_pnl": 22964.48,
+      "max_drawdown_vs_limit": "$694.49 vs $1000.0",
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 85,
+      "best_day_pnl": 1205.98,
+      "avg_daily_pnl": 270.17,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MCL",
+    "year": 2024,
+    "status": "OK",
+    "total_trades": 206,
+    "win_rate_pct": 38.8,
+    "profit_factor": 1.321,
+    "net_pnl": 196.5,
+    "gross_profit": 809.0,
+    "gross_loss": 612.5,
+    "avg_win": 10.11,
+    "avg_loss": 4.86,
+    "expectancy": 0.95,
+    "max_drawdown": 206.7,
+    "sharpe": 1.51,
+    "avg_r": -3.73,
+    "commissions": 927.0,
+    "avg_duration_min": 177.1,
+    "session_breakdown": {
+      "LONDON_OPEN": {
+        "trades": 121,
+        "wins": 44,
+        "pnl": 62.9,
+        "win_rate": 0.3636
+      },
+      "NY_AFTERNOON": {
+        "trades": 67,
+        "wins": 33,
+        "pnl": 188.3,
+        "win_rate": 0.4925
+      },
+      "NY_OPEN": {
+        "trades": 7,
+        "wins": 2,
+        "pnl": -12.5,
+        "win_rate": 0.2857
+      },
+      "NY_LUNCH": {
+        "trades": 11,
+        "wins": 1,
+        "pnl": -42.2,
+        "win_rate": 0.0909
+      }
+    },
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": 196.5,
+      "max_drawdown_vs_limit": "$206.70 vs $1000.0",
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 83,
+      "best_day_pnl": 69.6,
+      "avg_daily_pnl": 2.37,
+      "estimated_days_to_target": 550.6
+    }
+  }
+]

@@ -1,0 +1,26 @@
+{
+  "version": "2026-05-24",
+  "templates": {
+    "NSE_1330_A_PLUS": {
+      "must_match": ["market=NSE", "session=13:30", "valid_fvg=true", "mss=true", "not_choppy=true"],
+      "strong_preference": ["displacement=true", "h1_h4_not_countertrend=true", "score>=12"],
+      "allowed_flex": ["direction=ANY", "ob_optional"],
+      "quality_floor": "A",
+      "role_model_id": "NSE_1330_A_PLUS"
+    },
+    "NSE_SHORT_DISPLACED_FVG_A": {
+      "must_match": ["market=NSE", "direction=SHORT", "displacement=true", "valid_fvg=true", "mss=true"],
+      "strong_preference": ["not_choppy=true", "score>=8", "h1_h4_not_countertrend=true"],
+      "allowed_flex": ["ob_optional_if_score_strong"],
+      "quality_floor": "A",
+      "role_model_id": "NSE_SHORT_DISPLACED_FVG_A"
+    },
+    "FOREX_SHORT_BOS_DISPLACED_FVG_SCORE10_B": {
+      "must_match": ["market=FOREX", "direction=SHORT", "mss_type=BOS", "displacement=true", "score>=10"],
+      "strong_preference": ["active_killzone=true", "h1_h4_bearish_or_ranging=true", "spread_ok=true"],
+      "allowed_flex": ["ob_optional"],
+      "quality_floor": "B",
+      "role_model_id": "FOREX_SHORT_BOS_DISPLACED_FVG_SCORE10_B"
+    }
+  }
+}

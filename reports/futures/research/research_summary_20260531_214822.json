@@ -1,0 +1,163 @@
+[
+  {
+    "symbol": "MES",
+    "year": 2024,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 1,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "net_pnl": -63.25,
+    "gross_profit": 0,
+    "gross_loss": 63.25,
+    "avg_win": 0,
+    "avg_loss": 63.25,
+    "expectancy": -63.25,
+    "max_drawdown": 63.25,
+    "sharpe": 0.0,
+    "avg_r": -1.15,
+    "commissions": 4.5,
+    "avg_duration_min": 120.0,
+    "session_breakdown": {
+      "NY_AFTERNOON": {
+        "trades": 1,
+        "wins": 0,
+        "pnl": -63.25,
+        "win_rate": 0.0
+      }
+    },
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": -63.25,
+      "max_eod_drawdown": 63.25,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 1,
+      "best_day_pnl": -63.25,
+      "avg_daily_pnl": -63.25,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MNQ",
+    "year": 2024,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 0,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "net_pnl": 0.0,
+    "gross_profit": 0.0,
+    "gross_loss": 0.0,
+    "avg_win": 0.0,
+    "avg_loss": 0.0,
+    "expectancy": 0.0,
+    "max_drawdown": 0.0,
+    "sharpe": 0.0,
+    "avg_r": 0.0,
+    "commissions": 0.0,
+    "avg_duration_min": 0.0,
+    "session_breakdown": {},
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": 0.0,
+      "max_eod_drawdown": 0.0,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 0,
+      "best_day_pnl": 0.0,
+      "avg_daily_pnl": 0.0,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MGC",
+    "year": 2024,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 1,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "net_pnl": -70.5,
+    "gross_profit": 0,
+    "gross_loss": 70.5,
+    "avg_win": 0,
+    "avg_loss": 70.5,
+    "expectancy": -70.5,
+    "max_drawdown": 70.5,
+    "sharpe": 0.0,
+    "avg_r": -1.12,
+    "commissions": 4.5,
+    "avg_duration_min": 60.0,
+    "session_breakdown": {
+      "LONDON_OPEN": {
+        "trades": 1,
+        "wins": 0,
+        "pnl": -70.5,
+        "win_rate": 0.0
+      }
+    },
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": -70.5,
+      "max_eod_drawdown": 70.5,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 1,
+      "best_day_pnl": -70.5,
+      "avg_daily_pnl": -70.5,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MCL",
+    "year": 2024,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 3,
+    "win_rate_pct": 66.7,
+    "profit_factor": 0.615,
+    "net_pnl": -3.7,
+    "gross_profit": 5.9,
+    "gross_loss": 9.6,
+    "avg_win": 2.95,
+    "avg_loss": 9.6,
+    "expectancy": -1.23,
+    "max_drawdown": 9.6,
+    "sharpe": -2.675,
+    "avg_r": -0.37,
+    "commissions": 13.5,
+    "avg_duration_min": 260.0,
+    "session_breakdown": {
+      "NY_AFTERNOON": {
+        "trades": 3,
+        "wins": 2,
+        "pnl": -3.7,
+        "win_rate": 0.6667
+      }
+    },
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": -3.7,
+      "max_eod_drawdown": 9.6,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 3,
+      "best_day_pnl": 4.0,
+      "avg_daily_pnl": -1.23,
+      "estimated_days_to_target": null
+    }
+  }
+]

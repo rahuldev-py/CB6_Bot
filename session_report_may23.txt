@@ -1,0 +1,174 @@
+CB6 QUANTUM — SESSION REPORT
+Date: 2026-05-23
+========================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. EQH/EQL LIQUIDITY TARGETING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+File: scanner/silver_bullet.py
+
+NEW — detect_eqh_eql()
+  Finds Equal Highs / Equal Lows clusters (engineered liquidity pools).
+  Real markets never make exact equal highs — second touch is a few pts
+  higher/lower (e.g. 24850 → 24855). Two bugs fixed during build:
+
+  Bug 1 FIXED — Tolerance too tight (0.02% = ±4.8 pts on NIFTY)
+    Changed to 0.05% (±12 pts) so chained drift is caught correctly.
+
+  Bug 2 FIXED — Clustering anchor wrong
+    _cluster() was comparing each new point against group[0][0] (first
+    point). Chained drift (24848 → 24851 → 24855) broke the cluster
+    because pt3 was outside tolerance of pt1 even though it was within
+    tolerance of pt2.
+    Fix: changed group[0][0] → group[-1][0] (compare against previous
+    point, not original anchor).
+
+UPDATED — find_draw_on_liquidity()
+  Now calls detect_eqh_eql() first. Prefers EQH/EQL cluster over
+  single swing pivot when a cluster exists.
+  Returns is_eqh_eql: bool and cluster_count: int.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. NSE H1 BIAS FILTER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+File: scanner/silver_bullet.py
+
+NEW — _get_nse_h1_bias(fyers, symbol)
+  Fetches 60-min candles (10 days) via Fyers.
+  EMA(3) vs EMA(8):
+    fast > slow * 1.0002  → BULLISH
+    fast < slow * 0.9998  → BEARISH
+    else                  → RANGING
+  Fallback: RANGING when data unavailable (bot never crashes).
+
+UPDATED — scan_silver_bullet()
+  H1 bias check inserted after in_fvg gate:
+    - Counter-trend entries blocked when H1 ≠ direction
+    - CHoCH overrides the block (structure already shifted)
+    - H1 RANGING allows both directions but applies -1 penalty to score
+
+  Scoring updated (max 17 → 20):
+    +2 if DOL is EQH/EQL cluster
+    +1 if H1 bias aligns with direction
+    -1 if H1 bias is RANGING
+
+UPDATED — format_sb_alert()
+  Header shows [score/20]
+  New H1 Bias line with status icon
+  DOL line shows EQH/EQL cluster info: EQH @ 24850 [EQH/EQL x3]
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. FOREX EQH/EQL SCORE BONUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+File: forex_engine/scanner/signal_scanner.py
+
+  score += 2 if dol_eqh_eql (EQH/EQL DOL cluster confirmed)
+  Max score updated: /15 → /17
+  dol_is_eqh_eql added to return dict
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. SENSIBULL NSE OPTIONS LAYER (Codex-built, bugs fixed)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+New package: nse_options/
+
+  sensibull_client.py
+    Wrapper around Sensibull public API (oxide.sensibull.com).
+    Fetches option chains with Greeks. Retry with exponential backoff.
+    No auth required (public analytics endpoint).
+
+  option_cache.py
+    TTL cache for API responses. Config loader from option_config.json.
+
+  atm_strike_engine.py
+    Strike gap mapping: NIFTY=50, FINNIFTY=50, MIDCPNIFTY=25,
+    BANKNIFTY=100. Finds nearby strikes for a given spot price.
+
+  greeks_engine.py
+    Normalizes raw Sensibull chain into structured CE/PE Greeks dicts.
+
+  option_pressure_engine.py
+    Calculates PCR on OI and volume. Returns BULLISH/BEARISH/NEUTRAL
+    bias based on put-call pressure.
+
+  expiry_risk_engine.py
+    Evaluates expiry risk (HIGH/MEDIUM/LOW) based on DTE.
+    Bug FIXED: was using datetime.now().hour (local time) for the
+    late-day expiry check. Fixed to datetime.now(IST).hour.
+
+  option_chain_fetcher.py
+    High-level wrapper. Fail-safe: returns neutral context if API fails.
+
+  option_signal_context.py
+    Main orchestrator. Enriches trade setups with options intelligence.
+    If options bias contradicts direction: reduces risk_multiplier to 0.5.
+    allow_strong_contradiction_block (default off) can block trade.
+    Respects enabled: false — returns neutral context immediately.
+
+  option_config.json
+    Central config. Default: enabled=false, execution_allowed=false.
+    Bot fully off by default. No options intelligence until enabled=true.
+
+New files in other packages:
+  dashboard/options_panel.py    — renders options context for dashboard
+  notifications/options_alerts.py — Telegram alert on bias contradiction
+
+Modified files:
+  scanner/silver_bullet.py      — optional options enrichment after FVG
+  trader/order_manager.py       — options context reduces risk (never up)
+  trader/paper_trader.py        — stores options context in trade state
+  utils/trade_journal.py        — journal fields for options data
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. BUGS FIXED THIS SESSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[1] expiry_risk_engine.py — Timezone bug
+    datetime.now().hour used local system time (UTC on any server).
+    Fixed: datetime.now(IST).hour — always IST regardless of server TZ.
+
+[2] trade_journal.py:140 — Substring match bug
+    row['entry_time'] in entry_time (substring) could match wrong row
+    and corrupt journal exits.
+    Fixed: row['entry_time'] == entry_time (exact equality).
+
+[3] order_manager.py:334 — Unsafe float() cast
+    float(options_ctx.get('risk_multiplier')) would crash if API returns
+    malformed string. Fixed: wrapped in try/except (TypeError, ValueError),
+    falls back to risk_mult = 1.0.
+
+[4] silver_bullet.py — EQH/EQL clustering anchor (described in section 1)
+
+[5] silver_bullet.py — EQH/EQL tolerance too tight (described in section 1)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. CARRIED OVER FROM PREVIOUS SESSIONS
+   (already fixed, listed for reference)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  forex_worker.py — ticket unbound in paper mode (UnboundLocalError)
+  paper_trader.py — theta exit dead for SB trades (INDEX vs OPTION check)
+  paper_trader.py — _round_to_lot returned 1 lot instead of 0 for qty<1
+  data/financial_data_core.py — normalize_yahoo_symbol wrong for NSE indices
+  data/financial_data_core.py — broad except swallowing programmer errors
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. PENDING TASKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  HIGH PRIORITY
+  - Rotate GFT broker password (exposed in earlier chat session)
+  - Confirm IP whitelist with GFT portal
+
+  PLANNED NEXT
+  - India VIX filter (needs live NSE VIX data source)
+  - GFT 10K second worker (credentials + state file + heartbeat)
+  - Windows Task Scheduler auto-start on boot
+
+  LOW PRIORITY / DEFERRED
+  - Windows Credential Manager for .env secrets
+  - Rename mss_candles_ago parameter for clarity (not a live bug)
+  - EQH/EQL unit test
+
+========================================
+CB6 QUANTUM — END OF REPORT
+========================================

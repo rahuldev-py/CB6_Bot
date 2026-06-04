@@ -1,0 +1,235 @@
+{
+  "generated_at": "2026-05-31T21:21:41.512876",
+  "buy_verdict": "CONDITIONAL",
+  "buy_mff_now": false,
+  "confidence": "MEDIUM",
+  "blocking_reasons": [
+    "No 1m bar data available for any symbol. All results use 1h bars. 1h-bar backtests confirm directional edge but CANNOT predict fill accuracy, realistic slippage, or actual win rate on 1m entries.",
+    "Symbol(s) with FAIL verdict: MCL. Do not trade these symbols without strategy revision."
+  ],
+  "recommendations": [
+    "Export 1m historical data from TradingView for MES and MGC: Chart \u2192 Export Data \u2192 1 minute \u2192 last 2 years. Then re-run: python -m futures_engine.research.futures_research_runner",
+    "Symbols with CONDITIONAL verdict (MES, MGC, MNQ): edge is present but validate with 1m data first."
+  ],
+  "symbols": {
+    "MCL": {
+      "symbol": "MCL",
+      "gate_verdict": "FAIL",
+      "recommended_action": "Do not proceed. Address all FAIL reasons before re-evaluating.",
+      "mff_pass_count": 0,
+      "has_1m_data": false,
+      "reasons": [
+        "MFF eval simulation passes 0/3 years (minimum 2 required).",
+        "2024: PF 1.32 below minimum 1.5.",
+        "2025: PF 1.28 below minimum 1.5.",
+        "2026: only 98 trades (min 100)."
+      ],
+      "warnings": [
+        "Data is unknown bars \u2014 not 1m. Win rates and PF may be inflated. Treat as directional signal only, not execution-ready numbers.",
+        "MCL is a monthly-expiry contract. Rollover validator flagged unadjusted gaps. Apply Panama adjustment before treating PnL numbers as final."
+      ],
+      "years": [
+        {
+          "year": 2024,
+          "timeframe": "unknown",
+          "trades": 206,
+          "win_rate_pct": 38.8,
+          "profit_factor": 1.321,
+          "net_pnl": 196.5,
+          "max_drawdown": 206.7,
+          "expectancy": 0.95,
+          "mff_sim_passes": false,
+          "gate_pass": false
+        },
+        {
+          "year": 2025,
+          "timeframe": "unknown",
+          "trades": 377,
+          "win_rate_pct": 38.5,
+          "profit_factor": 1.282,
+          "net_pnl": 289.9,
+          "max_drawdown": 259.9,
+          "expectancy": 0.77,
+          "mff_sim_passes": false,
+          "gate_pass": false
+        },
+        {
+          "year": 2026,
+          "timeframe": "unknown",
+          "trades": 98,
+          "win_rate_pct": 29.6,
+          "profit_factor": 1.661,
+          "net_pnl": 261.3,
+          "max_drawdown": 122.9,
+          "expectancy": 2.66,
+          "mff_sim_passes": false,
+          "gate_pass": false
+        }
+      ]
+    },
+    "MES": {
+      "symbol": "MES",
+      "gate_verdict": "CONDITIONAL",
+      "recommended_action": "Mixed results. 1/3 years pass all criteria. Address flagged issues before going live.",
+      "mff_pass_count": 3,
+      "has_1m_data": false,
+      "reasons": [
+        "2025: Max DD $864 exceeds $700 gate (note: 1h-bar equity curve DD \u2260 MFF EOD drawdown \u2014 real value likely lower).",
+        "2026: Max DD $1348 exceeds $700 gate (note: 1h-bar equity curve DD \u2260 MFF EOD drawdown \u2014 real value likely lower)."
+      ],
+      "warnings": [
+        "Data is unknown bars \u2014 not 1m. Win rates and PF may be inflated. Treat as directional signal only, not execution-ready numbers."
+      ],
+      "years": [
+        {
+          "year": 2024,
+          "timeframe": "unknown",
+          "trades": 211,
+          "win_rate_pct": 74.4,
+          "profit_factor": 12.994,
+          "net_pnl": 21340.5,
+          "max_drawdown": 168.5,
+          "expectancy": 101.14,
+          "mff_sim_passes": true,
+          "gate_pass": true
+        },
+        {
+          "year": 2025,
+          "timeframe": "unknown",
+          "trades": 388,
+          "win_rate_pct": 85.3,
+          "profit_factor": 8.808,
+          "net_pnl": 35510.25,
+          "max_drawdown": 863.5,
+          "expectancy": 91.52,
+          "mff_sim_passes": true,
+          "gate_pass": false
+        },
+        {
+          "year": 2026,
+          "timeframe": "unknown",
+          "trades": 128,
+          "win_rate_pct": 72.7,
+          "profit_factor": 3.057,
+          "net_pnl": 8617.75,
+          "max_drawdown": 1348.25,
+          "expectancy": 67.33,
+          "mff_sim_passes": true,
+          "gate_pass": false
+        }
+      ]
+    },
+    "MGC": {
+      "symbol": "MGC",
+      "gate_verdict": "CONDITIONAL",
+      "recommended_action": "Mixed results. 1/3 years pass all criteria. Address flagged issues before going live.",
+      "mff_pass_count": 3,
+      "has_1m_data": false,
+      "reasons": [
+        "2025: Max DD $1227 exceeds $700 gate (note: 1h-bar equity curve DD \u2260 MFF EOD drawdown \u2014 real value likely lower).",
+        "2026: Max DD $3471 exceeds $700 gate (note: 1h-bar equity curve DD \u2260 MFF EOD drawdown \u2014 real value likely lower)."
+      ],
+      "warnings": [
+        "Data is unknown bars \u2014 not 1m. Win rates and PF may be inflated. Treat as directional signal only, not execution-ready numbers.",
+        "MGC is a monthly-expiry contract. Rollover validator flagged unadjusted gaps. Apply Panama adjustment before treating PnL numbers as final."
+      ],
+      "years": [
+        {
+          "year": 2024,
+          "timeframe": "unknown",
+          "trades": 187,
+          "win_rate_pct": 84.0,
+          "profit_factor": 10.781,
+          "net_pnl": 22964.48,
+          "max_drawdown": 694.49,
+          "expectancy": 122.81,
+          "mff_sim_passes": true,
+          "gate_pass": true
+        },
+        {
+          "year": 2025,
+          "timeframe": "unknown",
+          "trades": 325,
+          "win_rate_pct": 87.1,
+          "profit_factor": 12.593,
+          "net_pnl": 79201.52,
+          "max_drawdown": 1227.0,
+          "expectancy": 243.71,
+          "mff_sim_passes": true,
+          "gate_pass": false
+        },
+        {
+          "year": 2026,
+          "timeframe": "unknown",
+          "trades": 131,
+          "win_rate_pct": 80.2,
+          "profit_factor": 9.635,
+          "net_pnl": 58364.48,
+          "max_drawdown": 3471.0,
+          "expectancy": 445.5,
+          "mff_sim_passes": true,
+          "gate_pass": false
+        }
+      ]
+    },
+    "MNQ": {
+      "symbol": "MNQ",
+      "gate_verdict": "CONDITIONAL",
+      "recommended_action": "Mixed results. 1/3 years pass all criteria. Address flagged issues before going live.",
+      "mff_pass_count": 3,
+      "has_1m_data": false,
+      "reasons": [
+        "2025: Max DD $1251 exceeds $700 gate (note: 1h-bar equity curve DD \u2260 MFF EOD drawdown \u2014 real value likely lower).",
+        "2026: Max DD $1673 exceeds $700 gate (note: 1h-bar equity curve DD \u2260 MFF EOD drawdown \u2014 real value likely lower)."
+      ],
+      "warnings": [
+        "Data is unknown bars \u2014 not 1m. Win rates and PF may be inflated. Treat as directional signal only, not execution-ready numbers."
+      ],
+      "years": [
+        {
+          "year": 2024,
+          "timeframe": "unknown",
+          "trades": 218,
+          "win_rate_pct": 49.5,
+          "profit_factor": 23.086,
+          "net_pnl": 47596.0,
+          "max_drawdown": 693.5,
+          "expectancy": 218.33,
+          "mff_sim_passes": true,
+          "gate_pass": true
+        },
+        {
+          "year": 2025,
+          "timeframe": "unknown",
+          "trades": 298,
+          "win_rate_pct": 52.3,
+          "profit_factor": 17.366,
+          "net_pnl": 64055.0,
+          "max_drawdown": 1251.0,
+          "expectancy": 214.96,
+          "mff_sim_passes": true,
+          "gate_pass": false
+        },
+        {
+          "year": 2026,
+          "timeframe": "unknown",
+          "trades": 112,
+          "win_rate_pct": 50.0,
+          "profit_factor": 5.93,
+          "net_pnl": 20548.5,
+          "max_drawdown": 1673.0,
+          "expectancy": 183.47,
+          "mff_sim_passes": true,
+          "gate_pass": false
+        }
+      ]
+    }
+  },
+  "thresholds": {
+    "min_trades": 100,
+    "min_profit_factor": 1.5,
+    "max_drawdown_usd": 700.0,
+    "min_expectancy": 0.0,
+    "min_mff_pass_years": 2
+  }
+}

@@ -1,0 +1,21 @@
+truedata:
+  env: sandbox
+  ws_host: push.truedata.in
+  ws_port: 8082
+  rest_base_url: https://api.truedata.in
+  history_base_url: https://history.truedata.in
+
+trial:
+  duration_minutes: 15
+  symbols:
+    - NIFTY-I
+    - BANKNIFTY-I
+    - FINNIFTY-I
+    - MIDCPNIFTY-I
+  option_underlyings:
+    - NIFTY
+    - BANKNIFTY
+  option_strike_range: 10
+
+data:
+  output_dir: data/truedata_trial

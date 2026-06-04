@@ -1,0 +1,35 @@
+{
+  "dataset": "GLBX.MDP3",
+  "schema": "ohlcv-1m",
+  "start": "2021-01-01",
+  "symbols": {
+    "MES": {
+      "name": "Micro E-mini S&P 500",
+      "exchange_group": "CME",
+      "continuous_symbol": "MES.v.0",
+      "stype_in": "continuous",
+      "explicit_contracts": []
+    },
+    "MNQ": {
+      "name": "Micro E-mini Nasdaq",
+      "exchange_group": "CME",
+      "continuous_symbol": "MNQ.v.0",
+      "stype_in": "continuous",
+      "explicit_contracts": []
+    },
+    "MGC": {
+      "name": "Micro Gold",
+      "exchange_group": "COMEX",
+      "continuous_symbol": "MGC.v.0",
+      "stype_in": "continuous",
+      "explicit_contracts": []
+    },
+    "CL": {
+      "name": "Crude Oil",
+      "exchange_group": "NYMEX",
+      "continuous_symbol": "CL.v.0",
+      "stype_in": "continuous",
+      "explicit_contracts": []
+    }
+  }
+}

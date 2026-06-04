@@ -1,0 +1,83 @@
+
+============================================================
+  CB6 QUANTUM -- ML ENGINE STATUS REPORT
+  Generated: 2026-05-23 22:09:06
+============================================================
+
+  MODEL REGISTRY
+  ----------------------------------------
+  dnn_trade_scorer_nse                TRAINED      versions=1 gate=NO
+  dnn_trade_scorer_forex              TRAINED      versions=1 gate=NO
+  rnn_sequence_nse                    TRAINED      versions=2 gate=NO
+  rnn_sequence_forex                  NOT_TRAINED  versions=0 gate=NO
+  cnn_chart_vision                    RESEARCH     versions=2 gate=NO
+
+
+=======================================================
+  CB6 QUANTUM -- ML SCORECARD (NSE)
+  2026-05-23T22:09:06
+=======================================================
+  DNN: dnn_nse_v1_20260523_2144
+    AUC=0.3700  F1=0.6983  Brier=0.3396
+    Train=603  Val=151
+    Gate: NOT YET
+
+  LSTM: NOT TRAINED
+
+  Shadow Predictions: 2 total / 0 audited
+  Live Accuracy : n/a
+  Live AUC      : n/a
+  Live Brier    : n/a
+  Shadow Gate   : NOT YET (0/100 audited)
+
+=======================================================
+
+
+=======================================================
+  CB6 QUANTUM -- ML SCORECARD (FOREX)
+  2026-05-23T22:09:06
+=======================================================
+  DNN: dnn_forex_v1_20260523_2144
+    AUC=0.5503  F1=0.6753  Brier=0.2542
+    Train=215  Val=54
+    Gate: NOT YET
+
+  LSTM: NOT TRAINED
+
+  Shadow Predictions: 1 total / 0 audited
+  Live Accuracy : n/a
+  Live AUC      : n/a
+  Live Brier    : n/a
+  Shadow Gate   : NOT YET (0/100 audited)
+
+=======================================================
+
+  DRIFT STATUS
+  ----------------------------------------
+  [NSE] No drift
+  [FOREX] No drift
+
+  STEP 11 ACTIVATION GATE CHECKLIST
+  ----------------------------------------
+  [NSE]
+    [OK] 500+ labeled trades: 754
+    [NO] 100+ audited shadow predictions: 0
+    [NO] Live monotonic win-rate (A+>A>B>C): False
+    [NO] Training AUC >= 0.55: 0.3700
+    [MAN] 14 days no crash: MANUAL CHECK REQUIRED
+
+  [FOREX]
+    [NO] 500+ labeled trades: 269
+    [NO] 100+ audited shadow predictions: 0
+    [NO] Live monotonic win-rate (A+>A>B>C): False
+    [OK] Training AUC >= 0.55: 0.5503
+    [MAN] 14 days no crash: MANUAL CHECK REQUIRED
+
+
+  LAST 3 SHADOW PREDICTIONS
+  ----------------------------------------
+  2026-05-23T22:01:11 [nse] NIFTY BULL wp=0.785 bucket=A+ => pending
+  2026-05-23T22:01:11 [nse] NIFTY BULL wp=0.785 bucket=A+ => pending
+  2026-05-23T22:01:11 [forex] XAUUSD BEAR wp=0.970 bucket=A+ => pending
+
+============================================================

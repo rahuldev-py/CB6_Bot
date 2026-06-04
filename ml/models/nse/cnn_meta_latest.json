@@ -1,0 +1,15 @@
+{
+  "trained_at": "20260527_1120",
+  "market": "nse",
+  "source": "bt_365d_csv",
+  "n_samples": 1494,
+  "seq_shape": [
+    1494,
+    5,
+    4
+  ],
+  "val_loss": 0.555972,
+  "test_acc": 0.7584,
+  "test_prec": 0.9048,
+  "test_recall": 0.7851
+}

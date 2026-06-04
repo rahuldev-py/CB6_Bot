@@ -1,0 +1,83 @@
+{
+  "_comment": "GFT $5K 2-Step GOAT — MT5 live account, evaluation mode",
+  "profile_id": "GFT_5K_2STEP",
+  "display_name": "GFT $5K 2-Step GOAT",
+  "broker": "gft",
+  "account_size": 5000,
+  "leverage": 100,
+  "currency": "USD",
+  "mode": "live",
+
+  "symbols": ["XAGUSD", "USOIL"],
+  "disabled_symbols": ["XAUUSD"],
+
+  "risk": {
+    "normal_risk_pct": 0.20,
+    "reduced_risk_pct": 0.10,
+    "max_risk_pct": 0.25,
+    "normal_risk_usd": 10.0,
+    "reduced_risk_usd": 5.0,
+    "max_risk_usd": 12.50
+  },
+
+  "limits": {
+    "max_open_positions": 2,
+    "max_trades_per_day": 6,
+    "max_trades_per_hour": 2,
+    "min_gap_secs": 300,
+    "min_hold_secs": 120
+  },
+
+  "phases": {
+    "phase_1": {
+      "profit_target_pct": 8.0,
+      "profit_target_usd": 400.0
+    },
+    "phase_2": {
+      "profit_target_pct": 6.0,
+      "profit_target_usd": 300.0
+    }
+  },
+
+  "official_limits": {
+    "daily_loss_pct": 4.0,
+    "daily_loss_usd": 200.0,
+    "max_loss_pct": 10.0,
+    "max_loss_usd": 500.0,
+    "daily_profit_cap_usd": 3000.0
+  },
+
+  "internal_guards": {
+    "daily_warning_usd": 120.0,
+    "daily_risk_cut_usd": 150.0,
+    "daily_hard_stop_usd": 180.0,
+    "total_warning_usd": 300.0,
+    "total_risk_cut_usd": 400.0,
+    "total_hard_stop_usd": 450.0
+  },
+
+  "kill_zones_utc": [
+    {"start": 8, "end": 9, "label": "London Open"},
+    {"start": 15, "end": 16, "label": "NY Pre-Open"},
+    {"start": 19, "end": 20, "label": "NY Afternoon"}
+  ],
+
+  "aplus_boost": {
+    "threshold_55_multiplier": 1.25,
+    "threshold_70_multiplier": 1.50,
+    "threshold_85_multiplier": 2.00
+  },
+
+  "daily_reset_utc_hour": 22,
+
+  "state_file": "data/gft_2step_state.json",
+  "heartbeat_file": "data/gft_2step_heartbeat.txt",
+  "telegram_prefix": "[GFT-2STEP]",
+  "magic_env_var": "GFT_2STEP_MAGIC",
+
+  "mt5_credentials": {
+    "login_env": "GFT_2STEP_LOGIN",
+    "password_env": "GFT_2STEP_PASSWORD",
+    "server_env": "GFT_2STEP_SERVER"
+  }
+}

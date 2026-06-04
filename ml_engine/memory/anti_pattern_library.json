@@ -1,0 +1,85 @@
+{
+  "version": "2026-05-24",
+  "anti_patterns": [
+    {
+      "id": "WEAK_LONG_CHOCH",
+      "pattern_name": "Weak long CHoCH pockets",
+      "reason_to_avoid": "Current memory shows long CHoCH pockets underperform target WR and dilute A+ selectivity.",
+      "historical_wr": 59.43,
+      "historical_pf": 4.03,
+      "expected_damage": "Lowers WR toward 60% and increases average-trade noise.",
+      "skip_recommendation": "shadow_skip_unless_extra_confluence",
+      "confidence": 84
+    },
+    {
+      "id": "FOREX_LONG_BOS_NO_OB",
+      "pattern_name": "Forex long BOS without OB",
+      "reason_to_avoid": "Forex long BOS/no-OB buckets were among the weakest sufficient-sample combinations.",
+      "historical_wr": 51.35,
+      "historical_pf": 2.46,
+      "expected_damage": "Cuts WR nearly to coin-flip and makes live performance unstable.",
+      "skip_recommendation": "shadow_skip_or_require_higher_score",
+      "confidence": 80
+    },
+    {
+      "id": "NO_DISPLACEMENT_FVG",
+      "pattern_name": "No-displacement FVG",
+      "reason_to_avoid": "FVG without displacement is often balance/noise rather than institutional repricing.",
+      "historical_wr": null,
+      "historical_pf": null,
+      "expected_damage": "Creates false precision and weak entries.",
+      "skip_recommendation": "shadow_skip_recommendation",
+      "confidence": 88
+    },
+    {
+      "id": "CHOPPY_REGIME",
+      "pattern_name": "CHOPPY regime",
+      "reason_to_avoid": "Choppy conditions degrade time-and-price expansion setups.",
+      "historical_wr": null,
+      "historical_pf": null,
+      "expected_damage": "More stop-outs, fewer clean expansions, poor follow-through.",
+      "skip_recommendation": "shadow_skip_recommendation",
+      "confidence": 86
+    },
+    {
+      "id": "LOW_SCORE_SETUP",
+      "pattern_name": "Low score setups",
+      "reason_to_avoid": "Below-threshold setups lack enough confluence to match role models.",
+      "historical_wr": null,
+      "historical_pf": null,
+      "expected_damage": "Turns CB6 into average setup taker instead of best-self trader.",
+      "skip_recommendation": "shadow_warn_if_score_below_12",
+      "confidence": 82
+    },
+    {
+      "id": "SCORE_BELOW_12",
+      "pattern_name": "Score below 12",
+      "reason_to_avoid": "Best broad NSE short continuation edge strengthens around higher confluence buckets.",
+      "historical_wr": null,
+      "historical_pf": null,
+      "expected_damage": "More marginal trades and lower stability.",
+      "skip_recommendation": "shadow_require_role_model_match_if_score_below_12",
+      "confidence": 78
+    },
+    {
+      "id": "TINY_SAMPLE_FILTER",
+      "pattern_name": "Tiny sample perfect result",
+      "reason_to_avoid": "Perfect WR at N<30 is not reliable enough for live filters.",
+      "historical_wr": 100.0,
+      "historical_pf": "inf",
+      "expected_damage": "Curve fitting and false confidence.",
+      "skip_recommendation": "never_promote_without_N>=50",
+      "confidence": 95
+    },
+    {
+      "id": "OUTSIDE_BEST_WINDOWS",
+      "pattern_name": "Setups outside best windows",
+      "reason_to_avoid": "Best robust target came from NSE 13:30; off-window trades need stronger proof.",
+      "historical_wr": null,
+      "historical_pf": null,
+      "expected_damage": "Lower selectivity and more session noise.",
+      "skip_recommendation": "shadow_warn_unless_score_and_structure_strong",
+      "confidence": 76
+    }
+  ]
+}

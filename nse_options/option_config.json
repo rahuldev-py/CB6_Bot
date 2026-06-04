@@ -1,0 +1,18 @@
+{
+  "enabled": true,
+  "source": "truedata",
+  "execution_allowed": false,
+  "cache_seconds": 30,
+  "timeout_seconds": 8,
+  "max_retries": 2,
+  "symbols": ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"],
+  "num_strikes_from_atm": 5,
+  "expiry_mode": "nearest_weekly",
+  "use_for_trade_confirmation": true,
+  "use_for_direct_trade": false,
+  "use_for_dashboard": true,
+  "use_for_journal": true,
+  "fail_safe_mode": "continue_without_options_data",
+  "min_data_freshness_seconds": 60,
+  "allow_strong_contradiction_block": false
+}

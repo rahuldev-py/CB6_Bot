@@ -1,0 +1,54 @@
+{
+  "version": "2026-05-24",
+  "mode": "shadow_log_only",
+  "role_model_score_formula": {
+    "session_match": 15,
+    "direction_match": 12,
+    "structure_match": 14,
+    "fvg_match": 12,
+    "displacement_match": 14,
+    "ob_match": 6,
+    "trend_match": 10,
+    "regime_match": 8,
+    "score_gate_match": 9,
+    "max_score": 100
+  },
+  "quality_grades": {
+    "A+": "similarity_score >= 85 and no critical missing conditions",
+    "A": "similarity_score >= 75",
+    "B": "similarity_score >= 60",
+    "C": "similarity_score < 60"
+  },
+  "output_schema": {
+    "trade_id": "string",
+    "market": "NSE|FOREX",
+    "matched_role_model": "string|null",
+    "similarity_score": "0-100",
+    "quality_grade": "A+|A|B|C",
+    "missing_conditions": ["string"],
+    "warning_tags": ["string"],
+    "should_observe": true,
+    "should_skip": "shadow_recommendation_only",
+    "recommendation": "observe_only_shadow",
+    "learning_note": "string"
+  },
+  "example": {
+    "trade_id": "...",
+    "market": "NSE",
+    "matched_role_model": "NSE_1330_A_PLUS",
+    "similarity_score": 86,
+    "quality_grade": "A+",
+    "missing_conditions": ["OB overlap weak"],
+    "warning_tags": [],
+    "should_observe": true,
+    "should_skip": false,
+    "recommendation": "observe_only_shadow",
+    "learning_note": "Close to strongest 13:30 template"
+  },
+  "hard_safety": {
+    "execute_based_on_score": false,
+    "block_based_on_score": false,
+    "change_risk_based_on_score": false,
+    "change_sl_tp_based_on_score": false
+  }
+}

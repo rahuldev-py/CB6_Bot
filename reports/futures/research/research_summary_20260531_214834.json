@@ -1,0 +1,171 @@
+[
+  {
+    "symbol": "MES",
+    "year": 2025,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 2,
+    "win_rate_pct": 50.0,
+    "profit_factor": 2.931,
+    "net_pnl": 83.5,
+    "gross_profit": 126.75,
+    "gross_loss": 43.25,
+    "avg_win": 126.75,
+    "avg_loss": 43.25,
+    "expectancy": 41.75,
+    "max_drawdown": 43.25,
+    "sharpe": 5.513,
+    "avg_r": 0.37,
+    "commissions": 9.0,
+    "avg_duration_min": 690.0,
+    "session_breakdown": {
+      "NY_AFTERNOON": {
+        "trades": 1,
+        "wins": 0,
+        "pnl": -43.25,
+        "win_rate": 0.0
+      },
+      "LONDON_OPEN": {
+        "trades": 1,
+        "wins": 1,
+        "pnl": 126.75,
+        "win_rate": 1.0
+      }
+    },
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": 83.5,
+      "max_eod_drawdown": 43.25,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": false,
+      "violations": [
+        "Best day $126.75 = 152% of total profit $83.50 (limit 50%)"
+      ],
+      "trading_days": 2,
+      "best_day_pnl": 126.75,
+      "avg_daily_pnl": 41.75,
+      "estimated_days_to_target": 33.9
+    }
+  },
+  {
+    "symbol": "MNQ",
+    "year": 2025,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 1,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "net_pnl": -102.5,
+    "gross_profit": 0,
+    "gross_loss": 102.5,
+    "avg_win": 0,
+    "avg_loss": 102.5,
+    "expectancy": -102.5,
+    "max_drawdown": 102.5,
+    "sharpe": 0.0,
+    "avg_r": -0.28,
+    "commissions": 4.5,
+    "avg_duration_min": 420.0,
+    "session_breakdown": {
+      "NY_AFTERNOON": {
+        "trades": 1,
+        "wins": 0,
+        "pnl": -102.5,
+        "win_rate": 0.0
+      }
+    },
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": -102.5,
+      "max_eod_drawdown": 102.5,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 1,
+      "best_day_pnl": -102.5,
+      "avg_daily_pnl": -102.5,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MGC",
+    "year": 2025,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 2,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "net_pnl": -201.0,
+    "gross_profit": 0,
+    "gross_loss": 201.0,
+    "avg_win": 0,
+    "avg_loss": 100.5,
+    "expectancy": -100.5,
+    "max_drawdown": 201.0,
+    "sharpe": -21.285,
+    "avg_r": -1.12,
+    "commissions": 9.0,
+    "avg_duration_min": 300.0,
+    "session_breakdown": {
+      "LONDON_OPEN": {
+        "trades": 2,
+        "wins": 0,
+        "pnl": -201.0,
+        "win_rate": 0.0
+      }
+    },
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": -201.0,
+      "max_eod_drawdown": 201.0,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 2,
+      "best_day_pnl": -47.5,
+      "avg_daily_pnl": -100.5,
+      "estimated_days_to_target": null
+    }
+  },
+  {
+    "symbol": "MCL",
+    "year": 2025,
+    "timeframe_used": "1h",
+    "status": "OK",
+    "total_trades": 0,
+    "win_rate_pct": 0.0,
+    "profit_factor": 0.0,
+    "net_pnl": 0.0,
+    "gross_profit": 0.0,
+    "gross_loss": 0.0,
+    "avg_win": 0.0,
+    "avg_loss": 0.0,
+    "expectancy": 0.0,
+    "max_drawdown": 0.0,
+    "sharpe": 0.0,
+    "avg_r": 0.0,
+    "commissions": 0.0,
+    "avg_duration_min": 0.0,
+    "session_breakdown": {},
+    "mff_simulation": {
+      "would_pass": false,
+      "profit_target": 1500.0,
+      "total_pnl": 0.0,
+      "max_eod_drawdown": 0.0,
+      "max_drawdown_limit": 1000.0,
+      "dd_within_limit": true,
+      "consistency_ok": true,
+      "violations": [],
+      "trading_days": 0,
+      "best_day_pnl": 0.0,
+      "avg_daily_pnl": 0.0,
+      "estimated_days_to_target": null
+    }
+  }
+]

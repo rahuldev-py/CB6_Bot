@@ -1,0 +1,61 @@
+{
+  "_comment": "FTMO Free Trial — $10K account, Sprint Mode active (May 25-29 2026)",
+  "profile_id": "FTMO",
+  "display_name": "FTMO Free Trial $10K",
+  "broker": "ftmo",
+  "account_size": 10000,
+  "leverage": 100,
+  "currency": "USD",
+  "mode": "live",
+
+  "symbols": ["XAGUSD", "USOIL", "EURUSD"],
+  "disabled_symbols": ["XAUUSD"],
+
+  "risk": {
+    "risk_per_trade_pct": 0.70,
+    "reduced_risk_pct": 0.35,
+    "max_risk_pct": 1.00
+  },
+
+  "limits": {
+    "max_open_positions": 2,
+    "max_trades_per_day": 4,
+    "max_trades_per_hour": 2,
+    "min_gap_secs": 300,
+    "min_hold_secs": 120
+  },
+
+  "official_limits": {
+    "daily_loss_usd": 300,
+    "max_loss_usd": 1000,
+    "best_day_profit_usd": 250,
+    "profit_target_usd": 500
+  },
+
+  "internal_guards": {
+    "daily_loss_reduce_pct": 1.5,
+    "daily_loss_aplus_pct": 2.0,
+    "daily_loss_stop_pct": 2.5,
+    "total_dd_reduce_pct": 5.0,
+    "total_dd_aplus_pct": 7.0,
+    "total_dd_stop_pct": 8.5,
+    "daily_profit_reduce_pct": 1.5,
+    "daily_profit_stop_pct": 2.4
+  },
+
+  "kill_zones_utc": [
+    {"start": 7, "end": 12, "label": "London"},
+    {"start": 16, "end": 20, "label": "New York"}
+  ],
+
+  "aplus_boost": {
+    "threshold_55_multiplier": 1.25,
+    "threshold_70_multiplier": 1.50,
+    "threshold_85_multiplier": 2.00
+  },
+
+  "state_file": "data/forex_paper_state.json",
+  "heartbeat_file": "data/forex_heartbeat.txt",
+  "telegram_prefix": "[FTMO]",
+  "magic_number": 62002
+}

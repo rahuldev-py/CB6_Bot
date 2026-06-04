@@ -1,0 +1,61 @@
+{
+  "_comment": "Paper trading profile — yfinance data, no MT5, for strategy testing",
+  "profile_id": "PAPER_FOREX",
+  "display_name": "Paper Forex (yfinance)",
+  "broker": "paper",
+  "account_size": 10000,
+  "leverage": 100,
+  "currency": "USD",
+  "mode": "paper",
+
+  "symbols": ["XAGUSD", "USOIL", "EURUSD"],
+  "disabled_symbols": ["XAUUSD"],
+
+  "risk": {
+    "risk_per_trade_pct": 0.50,
+    "reduced_risk_pct": 0.25,
+    "max_risk_pct": 1.00
+  },
+
+  "limits": {
+    "max_open_positions": 3,
+    "max_trades_per_day": 6,
+    "max_trades_per_hour": 3,
+    "min_gap_secs": 180,
+    "min_hold_secs": 60
+  },
+
+  "official_limits": {
+    "daily_loss_usd": 300,
+    "max_loss_usd": 1000,
+    "best_day_profit_usd": 500,
+    "profit_target_usd": 1000
+  },
+
+  "internal_guards": {
+    "daily_loss_reduce_pct": 1.5,
+    "daily_loss_stop_pct": 2.5,
+    "total_dd_reduce_pct": 5.0,
+    "total_dd_stop_pct": 8.5,
+    "daily_profit_stop_pct": 4.0
+  },
+
+  "kill_zones_utc": [
+    {"start": 7, "end": 12, "label": "London"},
+    {"start": 16, "end": 20, "label": "New York"}
+  ],
+
+  "aplus_boost": {
+    "threshold_55_multiplier": 1.25,
+    "threshold_70_multiplier": 1.50,
+    "threshold_85_multiplier": 2.00
+  },
+
+  "state_file": "data/paper_forex_state.json",
+  "heartbeat_file": "data/paper_forex_heartbeat.txt",
+  "telegram_prefix": "[PAPER]",
+  "magic_number": 99990000,
+
+  "data_source": "yfinance",
+  "poll_interval_secs": 60
+}

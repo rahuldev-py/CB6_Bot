@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(python -c:*)",
+      "Bash(python set_bot_commands.py)",
+      "Bash(python main.py)",
+      "Bash(python forex_main.py)",
+      "Read(c:\\cb6_bot\\**)",
+      "Edit(c:\\cb6_bot\\**)",
+      "Write(c:\\cb6_bot\\**)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(Get-ChildItem:*)",
+      "Bash(Get-Content:*)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(Remove-Item -Recurse -Force c:\\cb6_bot\\data\\*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python c:\\cb6_bot\\.claude\\hooks\\check_paper_mode.py"
+          }
+        ]
+      }
+    ]
+  },
+  "env": {
+    "PYTHONIOENCODING": "utf-8"
+  }
+}

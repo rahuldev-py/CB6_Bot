@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CB6 Quantum Flowchart</title>
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --ink: #172033;
+      --muted: #5a667a;
+      --line: #7c8798;
+      --panel: #ffffff;
+      --data: #d8eef7;
+      --scan: #e6dcff;
+      --brain: #dff3e8;
+      --risk: #fff2c8;
+      --exec: #ffd9d9;
+      --monitor: #dbe7ff;
+      --learn: #e7e9ee;
+    }
+
+    html,
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+
+    .page {
+      width: min(1800px, 100vw);
+      margin: 0 auto;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .title {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 20px;
+      margin: 0 0 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 34px;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(7, auto);
+      gap: 8px;
+      align-items: center;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    .key {
+      width: 14px;
+      height: 14px;
+      border: 1px solid #aeb7c6;
+      border-radius: 3px;
+      display: inline-block;
+      margin-right: 4px;
+      vertical-align: -2px;
+    }
+
+    .canvas {
+      overflow: auto;
+      background: #ffffff;
+      border: 1px solid #d7dce5;
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(30, 42, 62, 0.10);
+    }
+
+    svg {
+      display: block;
+      width: 1750px;
+      height: 1040px;
+    }
+
+    .lane {
+      fill: #f9fbfe;
+      stroke: #dce2ec;
+      stroke-width: 1;
+    }
+
+    .lane-title {
+      font-weight: 700;
+      fill: #3b4659;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .box {
+      stroke: #b8c0ce;
+      stroke-width: 1.3;
+      rx: 7;
+      ry: 7;
+    }
+
+    .data { fill: var(--data); }
+    .scan { fill: var(--scan); }
+    .brain { fill: var(--brain); }
+    .risk { fill: var(--risk); }
+    .exec { fill: var(--exec); }
+    .monitor { fill: var(--monitor); }
+    .learn { fill: var(--learn); }
+    .hub { fill: #eef1f6; }
+
+    .box-title {
+      fill: var(--ink);
+      font-size: 17px;
+      font-weight: 700;
+      text-anchor: middle;
+    }
+
+    .box-sub {
+      fill: #3d4a5d;
+      font-size: 13px;
+      text-anchor: middle;
+    }
+
+    .small {
+      font-size: 12px;
+    }
+
+    .arrow {
+      stroke: var(--line);
+      stroke-width: 2;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .arrow-strong {
+      stroke: #37465c;
+      stroke-width: 2.7;
+      fill: none;
+      marker-end: url(#arrowStrong);
+    }
+
+    .feedback {
+      stroke: #8792a4;
+      stroke-width: 2;
+      stroke-dasharray: 8 7;
+      fill: none;
+      marker-end: url(#arrow);
+    }
+
+    .note {
+      fill: #ffffff;
+      stroke: #d3d8e2;
+      stroke-width: 1;
+      rx: 6;
+      ry: 6;
+    }
+
+    .note-text {
+      font-size: 12px;
+      fill: var(--muted);
+    }
+
+    @media print {
+      .page {
+        width: 100%;
+        padding: 0;
+      }
+      .canvas {
+        border: 0;
+        box-shadow: none;
+        overflow: visible;
+      }
+      svg {
+        width: 100%;
+        height: auto;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <div class="title">
+      <div>
+        <h1>CB6 Quantum - Clean System Flow</h1>
+        <p class="subtitle">Readable end-to-end architecture: data intake, signal engine, risk gates, execution, monitoring, and learning loop.</p>
+      </div>
+      <div class="legend" aria-label="Legend">
+        <span><i class="key" style="background: var(--data)"></i>Data</span>
+        <span><i class="key" style="background: var(--scan)"></i>Scan</span>
+        <span><i class="key" style="background: var(--brain)"></i>Brain/ML</span>
+        <span><i class="key" style="background: var(--risk)"></i>Risk</span>
+        <span><i class="key" style="background: var(--exec)"></i>Execution</span>
+        <span><i class="key" style="background: var(--monitor)"></i>Monitor</span>
+        <span><i class="key" style="background: var(--learn)"></i>Learning</span>
+      </div>
+    </div>
+
+    <section class="canvas" aria-label="CB6 Quantum flowchart">
+      <svg viewBox="0 0 1750 1040" role="img" aria-labelledby="chartTitle chartDesc">
+        <title id="chartTitle">CB6 Quantum clear flowchart</title>
+        <desc id="chartDesc">A landscape flowchart showing CB6 Quantum data sources, orchestrator, signal engine, risk gate, execution, monitoring, and learning feedback.</desc>
+
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c8798"></path>
+          </marker>
+          <marker id="arrowStrong" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#37465c"></path>
+          </marker>
+        </defs>
+
+        <!-- Swimlanes -->
+        <rect class="lane" x="28" y="50" width="240" height="790" rx="8"></rect>
+        <text class="lane-title" x="148" y="80" text-anchor="middle">1. MARKET DATA</text>
+
+        <rect class="lane" x="292" y="50" width="200" height="790" rx="8"></rect>
+        <text class="lane-title" x="392" y="80" text-anchor="middle">2. SUPERVISOR</text>
+
+        <rect class="lane" x="516" y="50" width="270" height="790" rx="8"></rect>
+        <text class="lane-title" x="651" y="80" text-anchor="middle">3. SIGNAL ENGINE</text>
+
+        <rect class="lane" x="810" y="50" width="250" height="790" rx="8"></rect>
+        <text class="lane-title" x="935" y="80" text-anchor="middle">4. BRAIN + ML</text>
+
+        <rect class="lane" x="1084" y="50" width="240" height="790" rx="8"></rect>
+        <text class="lane-title" x="1204" y="80" text-anchor="middle">5. RISK GATES</text>
+
+        <rect class="lane" x="1348" y="50" width="180" height="790" rx="8"></rect>
+        <text class="lane-title" x="1438" y="80" text-anchor="middle">6. EXECUTE</text>
+
+        <rect class="lane" x="1552" y="50" width="170" height="790" rx="8"></rect>
+        <text class="lane-title" x="1637" y="80" text-anchor="middle">7. MONITOR</text>
+
+        <!-- Data lane -->
+        <rect class="box data" x="58" y="120" width="180" height="74"></rect>
+        <text class="box-title" x="148" y="149">NSE Data</text>
+        <text class="box-sub" x="148" y="171">Fyers / TrueData</text>
+        <text class="box-sub small" x="148" y="188">ticks, candles, options</text>
+
+        <rect class="box data" x="58" y="240" width="180" height="74"></rect>
+        <text class="box-title" x="148" y="269">Forex Data</text>
+        <text class="box-sub" x="148" y="291">MT5 terminals</text>
+        <text class="box-sub small" x="148" y="308">FTMO, GFT, history</text>
+
+        <rect class="box data" x="58" y="360" width="180" height="74"></rect>
+        <text class="box-title" x="148" y="389">Crypto Data</text>
+        <text class="box-sub" x="148" y="411">Binance adapter</text>
+        <text class="box-sub small" x="148" y="428">BTC / ETH feeds</text>
+
+        <rect class="box data" x="58" y="520" width="180" height="92"></rect>
+        <text class="box-title" x="148" y="550">Market Context</text>
+        <text class="box-sub" x="148" y="572">FII/DII, sessions</text>
+        <text class="box-sub" x="148" y="590">spread, news, HTF</text>
+
+        <!-- Supervisor lane -->
+        <rect class="box hub" x="322" y="180" width="140" height="110"></rect>
+        <text class="box-title" x="392" y="213">Orchestrator</text>
+        <text class="box-sub" x="392" y="237">starts engines</text>
+        <text class="box-sub" x="392" y="256">checks heartbeat</text>
+        <text class="box-sub" x="392" y="275">restart / stop</text>
+
+        <rect class="box hub" x="322" y="390" width="140" height="92"></rect>
+        <text class="box-title" x="392" y="420">Engine Router</text>
+        <text class="box-sub" x="392" y="443">NSE / Forex</text>
+        <text class="box-sub" x="392" y="462">Crypto workers</text>
+
+        <!-- Signal lane -->
+        <rect class="box scan" x="546" y="100" width="210" height="92"></rect>
+        <text class="box-title" x="651" y="130">Session Filter</text>
+        <text class="box-sub" x="651" y="153">market open?</text>
+        <text class="box-sub" x="651" y="172">kill zone active?</text>
+
+        <rect class="box scan" x="546" y="230" width="210" height="106"></rect>
+        <text class="box-title" x="651" y="260">Liquidity Sweep</text>
+        <text class="box-sub" x="651" y="283">ACTIVE / SWEPT</text>
+        <text class="box-sub" x="651" y="302">VIOLATED / EXPIRED</text>
+        <text class="box-sub small" x="651" y="320">confidence 0-100</text>
+
+        <rect class="box scan" x="546" y="374" width="210" height="118"></rect>
+        <text class="box-title" x="651" y="404">ICT Structure</text>
+        <text class="box-sub" x="651" y="428">DOL, MSS, BOS</text>
+        <text class="box-sub" x="651" y="447">CHoCH, displacement</text>
+        <text class="box-sub" x="651" y="466">FVG + order block</text>
+
+        <rect class="box scan" x="546" y="532" width="210" height="104"></rect>
+        <text class="box-title" x="651" y="562">Signal Plan</text>
+        <text class="box-sub" x="651" y="585">direction + entry</text>
+        <text class="box-sub" x="651" y="604">SL, T1, T2, T3</text>
+        <text class="box-sub small" x="651" y="622">confluence score</text>
+
+        <!-- Brain lane -->
+        <rect class="box brain" x="840" y="120" width="190" height="94"></rect>
+        <text class="box-title" x="935" y="150">Market Brain</text>
+        <text class="box-sub" x="935" y="173">bias + trade mode</text>
+        <text class="box-sub" x="935" y="192">session score gate</text>
+
+        <rect class="box brain" x="840" y="260" width="190" height="94"></rect>
+        <text class="box-title" x="935" y="290">HTF Bias</text>
+        <text class="box-sub" x="935" y="313">H1 / H4 trend</text>
+        <text class="box-sub" x="935" y="332">ranging handling</text>
+
+        <rect class="box brain" x="840" y="400" width="190" height="110"></rect>
+        <text class="box-title" x="935" y="430">ML Shadow</text>
+        <text class="box-sub" x="935" y="453">win probability</text>
+        <text class="box-sub" x="935" y="472">confidence bucket</text>
+        <text class="box-sub small" x="935" y="492">advisory unless gated</text>
+
+        <rect class="box brain" x="840" y="556" width="190" height="88"></rect>
+        <text class="box-title" x="935" y="586">Decision Pack</text>
+        <text class="box-sub" x="935" y="609">signal + context</text>
+        <text class="box-sub" x="935" y="628">ready for gate</text>
+
+        <!-- Risk lane -->
+        <rect class="box risk" x="1114" y="96" width="180" height="86"></rect>
+        <text class="box-title" x="1204" y="127">Trade Quality</text>
+        <text class="box-sub" x="1204" y="150">sweep + FVG</text>
+        <text class="box-sub" x="1204" y="168">MSS/BOS confirm</text>
+
+        <rect class="box risk" x="1114" y="224" width="180" height="100"></rect>
+        <text class="box-title" x="1204" y="255">Risk Limits</text>
+        <text class="box-sub" x="1204" y="278">daily loss</text>
+        <text class="box-sub" x="1204" y="297">drawdown</text>
+        <text class="box-sub" x="1204" y="316">trade count</text>
+
+        <rect class="box risk" x="1114" y="366" width="180" height="100"></rect>
+        <text class="box-title" x="1204" y="397">Broker Rules</text>
+        <text class="box-sub" x="1204" y="420">spread, session</text>
+        <text class="box-sub" x="1204" y="439">prop constraints</text>
+        <text class="box-sub" x="1204" y="458">duplicate guard</text>
+
+        <rect class="box risk" x="1114" y="508" width="180" height="100"></rect>
+        <text class="box-title" x="1204" y="539">Sizing</text>
+        <text class="box-sub" x="1204" y="562">risk per trade</text>
+        <text class="box-sub" x="1204" y="581">lot / margin check</text>
+        <text class="box-sub" x="1204" y="600">RR validation</text>
+
+        <rect class="box risk" x="1114" y="654" width="180" height="70"></rect>
+        <text class="box-title" x="1204" y="683">Final Gate</text>
+        <text class="box-sub" x="1204" y="705">PASS or SKIP</text>
+
+        <!-- Execution lane -->
+        <rect class="box exec" x="1372" y="150" width="132" height="90"></rect>
+        <text class="box-title" x="1438" y="181">Order Layer</text>
+        <text class="box-sub" x="1438" y="204">paper / live</text>
+        <text class="box-sub" x="1438" y="223">Fyers / MT5</text>
+
+        <rect class="box exec" x="1372" y="310" width="132" height="96"></rect>
+        <text class="box-title" x="1438" y="341">Position</text>
+        <text class="box-sub" x="1438" y="364">open trade</text>
+        <text class="box-sub" x="1438" y="383">save state</text>
+        <text class="box-sub small" x="1438" y="400">trade id</text>
+
+        <rect class="box exec" x="1372" y="476" width="132" height="96"></rect>
+        <text class="box-title" x="1438" y="507">Targets</text>
+        <text class="box-sub" x="1438" y="530">arm SL</text>
+        <text class="box-sub" x="1438" y="549">arm T1-T3</text>
+        <text class="box-sub small" x="1438" y="566">trailing rules</text>
+
+        <!-- Monitor lane -->
+        <rect class="box monitor" x="1574" y="126" width="126" height="90"></rect>
+        <text class="box-title" x="1637" y="157">Tick Loop</text>
+        <text class="box-sub" x="1637" y="180">websocket</text>
+        <text class="box-sub" x="1637" y="199">price updates</text>
+
+        <rect class="box monitor" x="1574" y="276" width="126" height="94"></rect>
+        <text class="box-title" x="1637" y="307">Exit Logic</text>
+        <text class="box-sub" x="1637" y="330">SL hit</text>
+        <text class="box-sub" x="1637" y="349">target hit</text>
+
+        <rect class="box monitor" x="1574" y="430" width="126" height="110"></rect>
+        <text class="box-title" x="1637" y="461">Protection</text>
+        <text class="box-sub" x="1637" y="484">emergency stop</text>
+        <text class="box-sub" x="1637" y="503">heartbeat</text>
+        <text class="box-sub" x="1637" y="522">alerts</text>
+
+        <!-- Learning loop lane at bottom -->
+        <rect class="lane" x="28" y="872" width="1694" height="130" rx="8"></rect>
+        <text class="lane-title" x="875" y="902" text-anchor="middle">8. JOURNAL, DASHBOARD, AND LEARNING LOOP</text>
+
+        <rect class="box learn" x="86" y="925" width="220" height="54"></rect>
+        <text class="box-title" x="196" y="948">Persistent State</text>
+        <text class="box-sub" x="196" y="968">paper/forex/crypto JSON</text>
+
+        <rect class="box learn" x="374" y="925" width="220" height="54"></rect>
+        <text class="box-title" x="484" y="948">Trade Journal</text>
+        <text class="box-sub" x="484" y="968">P&L, R, outcome, reason</text>
+
+        <rect class="box learn" x="662" y="925" width="220" height="54"></rect>
+        <text class="box-title" x="772" y="948">ML Dataset</text>
+        <text class="box-sub" x="772" y="968">sweep + setup + outcome</text>
+
+        <rect class="box learn" x="950" y="925" width="220" height="54"></rect>
+        <text class="box-title" x="1060" y="948">Dashboard</text>
+        <text class="box-sub" x="1060" y="968">status, charts, metrics</text>
+
+        <rect class="box learn" x="1238" y="925" width="220" height="54"></rect>
+        <text class="box-title" x="1348" y="948">Reports</text>
+        <text class="box-sub" x="1348" y="968">readiness + backtests</text>
+
+        <rect class="box learn" x="1526" y="925" width="150" height="54"></rect>
+        <text class="box-title" x="1601" y="948">Telegram</text>
+        <text class="box-sub" x="1601" y="968">alerts + commands</text>
+
+        <!-- Arrows -->
+        <path class="arrow" d="M 238 157 L 322 217"></path>
+        <path class="arrow" d="M 238 277 L 322 236"></path>
+        <path class="arrow" d="M 238 397 L 322 254"></path>
+        <path class="arrow" d="M 392 290 L 392 390"></path>
+        <path class="arrow-strong" d="M 462 436 L 546 146"></path>
+        <path class="arrow-strong" d="M 651 192 L 651 230"></path>
+        <path class="arrow-strong" d="M 651 336 L 651 374"></path>
+        <path class="arrow-strong" d="M 651 492 L 651 532"></path>
+        <path class="arrow" d="M 238 566 L 840 166"></path>
+        <path class="arrow" d="M 756 276 L 840 307"></path>
+        <path class="arrow" d="M 756 433 L 840 455"></path>
+        <path class="arrow-strong" d="M 756 584 L 840 600"></path>
+        <path class="arrow" d="M 1030 167 L 1114 139"></path>
+        <path class="arrow" d="M 1030 307 L 1114 274"></path>
+        <path class="arrow" d="M 1030 455 L 1114 416"></path>
+        <path class="arrow-strong" d="M 1030 600 L 1114 688"></path>
+        <path class="arrow" d="M 1204 182 L 1204 224"></path>
+        <path class="arrow" d="M 1204 324 L 1204 366"></path>
+        <path class="arrow" d="M 1204 466 L 1204 508"></path>
+        <path class="arrow" d="M 1204 608 L 1204 654"></path>
+        <path class="arrow-strong" d="M 1294 689 L 1372 195"></path>
+        <path class="arrow" d="M 1438 240 L 1438 310"></path>
+        <path class="arrow" d="M 1438 406 L 1438 476"></path>
+        <path class="arrow-strong" d="M 1504 524 L 1574 171"></path>
+        <path class="arrow" d="M 1637 216 L 1637 276"></path>
+        <path class="arrow" d="M 1637 370 L 1637 430"></path>
+
+        <!-- Down to learning loop -->
+        <path class="arrow" d="M 1438 572 L 1438 830 L 196 830 L 196 925"></path>
+        <path class="arrow" d="M 1637 540 L 1637 830 L 484 830 L 484 925"></path>
+        <path class="arrow" d="M 651 636 L 651 820 L 772 820 L 772 925"></path>
+        <path class="arrow" d="M 935 644 L 935 820 L 772 820"></path>
+        <path class="arrow" d="M 1204 724 L 1204 830 L 1060 830 L 1060 925"></path>
+        <path class="arrow" d="M 1601 925 L 1601 840 L 1637 840 L 1637 540"></path>
+
+        <!-- Feedback loops -->
+        <path class="feedback" d="M 772 925 C 772 760, 900 730, 935 644"></path>
+        <path class="feedback" d="M 484 925 C 484 760, 560 720, 651 636"></path>
+        <path class="feedback" d="M 1348 925 C 1348 800, 1260 770, 1204 724"></path>
+
+        <!-- Skip note -->
+        <rect class="note" x="1328" y="664" width="166" height="64"></rect>
+        <text class="note-text" x="1411" y="687" text-anchor="middle">If any gate fails:</text>
+        <text class="note-text" x="1411" y="706" text-anchor="middle">SKIP, log reason,</text>
+        <text class="note-text" x="1411" y="724" text-anchor="middle">return to scan loop.</text>
+
+        <!-- Core labels -->
+        <text class="note-text" x="875" y="36" text-anchor="middle">Main path flows left to right. Dashed lines are learning feedback into ML, brain, and gates.</text>
+      </svg>
+    </section>
+  </main>
+</body>
+</html>

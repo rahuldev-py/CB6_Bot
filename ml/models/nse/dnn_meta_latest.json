@@ -1,0 +1,33 @@
+{
+  "trained_at": "20260527_1120",
+  "market": "nse",
+  "source": "bt_combined_2024_2026",
+  "n_samples": 1494,
+  "n_features": 18,
+  "features": [
+    "dir_enc",
+    "mss_enc",
+    "regime_enc",
+    "index_enc",
+    "score",
+    "fvg_size",
+    "fvg_ratio",
+    "risk_pts",
+    "rr_t1",
+    "rr_t2",
+    "rr_t3",
+    "hour",
+    "minute",
+    "weekday",
+    "session_enc",
+    "fvg_top_dist",
+    "fvg_bottom_dist",
+    "year_enc"
+  ],
+  "epochs_run": 47,
+  "val_loss": 0.57245,
+  "test_acc": 0.7383,
+  "test_prec": 0.9184,
+  "test_recall": 0.7438,
+  "test_mae_r": 1.2745
+}

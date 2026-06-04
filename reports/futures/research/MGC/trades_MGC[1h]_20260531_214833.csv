@@ -1,0 +1,3 @@
+trade_id,symbol,contract,direction,entry_time,exit_time,entry_price,exit_price,contracts,point_value,commission,slippage,pnl_gross,pnl_net,r_multiple,stop_loss,target,session,tags,open
+4e4d1168,MGC,MGCK25,SHORT,2025-03-25 05:00:00+00:00,2025-03-25 13:00:00+00:00,3020.6,3035.2999,1,10.0,2.25,1.0,-146.9990000000007,-153.4990000000007,-1.05,3035.1999,2977.2001,LONDON_OPEN,[],False
+5f9f816b,MGC,MGCQ25,LONG,2025-07-04 05:00:00+00:00,2025-07-04 07:00:00+00:00,3351.9,3347.8,1,10.0,2.25,1.0,-40.99999999999909,-47.49999999999909,-1.19,3347.9,3363.5003,LONDON_OPEN,[],False
