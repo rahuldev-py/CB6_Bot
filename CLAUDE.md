@@ -13,36 +13,60 @@
 1. **No equity/stock trades** — Index futures + options ONLY (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY). Zero exceptions.
 2. **Never set `paper_mode=True`** in any live config or state file. Paper mode is for testing only.
 3. **Never manually edit state.json files** without reading them first and confirming the edit is safe.
-4. **Never enable XAUUSD on GFT** — permanently disabled. GFT symbols: XAGUSD + USOIL only.
-5. **Never build the SaaS/brokera.in commercial platform** until NSE live win rate ≥ 56% validated + GFT funded account profitable.
-6. **Never skip the best-day PnL cap check** on FTMO — $250/day hard cap enforced in code.
+4. **XAUUSD is now enabled on all GFT accounts** — XAUUSD + XAGUSD + USOIL active. H4 bias filter mandatory before any Gold entry (was disabled after May 22 SELL disaster; H4 filter now enforced). Per-account max lots: $10K→0.10, $5K→0.05, $1K→0.01.
+5. **Never build the SaaS/brokera.in commercial platform** until NSE live win rate ≥ 56% validated + GFT master account profitable.
+6. **FTMO is deprioritized** — do not waste engineering effort on FTMO. Keep existing code running as-is, no new features or debugging effort for FTMO.
 7. **Always use `encoding='utf-8'`** when opening Python files for AST parsing on Windows.
 
 ---
 
-## Current Account Status (as of 2026-06-04)
+## Current Account Status (as of 2026-06-05)
 
-### FTMO Free Trial ($10,000)
-- **Capital:** $9,891.91 | **PnL:** -$108.09
-- **Target:** +$500 (5%) → need **+$608 more**
-- **Deadline:** ~June 6, 2026 (~2 trading days)
-- **Daily loss limit:** $300 (3%) | **Best-day cap:** $250
-- **Risk/trade:** 0.7% = $70/trade (sprint mode)
-- **Active symbols:** XAGUSD, USOIL, EURUSD (XAUUSD paused after 3-loss disaster May 22)
-- **State file:** `data/ftmo_10k/state.json`
-- **Config:** `forex_engine/prop_firms/ftmo/ftmo_config.py`
+> **PRIORITY ORDER: GFT $5K 2-Step → GFT $1K Instant → NSE Fyers → (FTMO last, deprioritized)**
+> ALL THREE active accounts are REAL funded with real money:
+> GFT $5K + GFT $1K (MT5 prop firm) + NSE Fyers ₹26,000 (Indian markets).
+> FTMO free trial runs as-is — no new engineering effort.
 
-### GFT $5K 2-Step GOAT (ONE account, not three)
-- **Capital:** $4,967.00 | **PnL:** -$33.00
-- **Phase 1 target:** +$400 (8%) → need **+$433.00 more** + 3 trading days
-- **Phase 2 target:** +$300 (6%) after Phase 1 passes
-- **Goal:** Funded real $5K → scale to $10K → fund CB6 Quantum infrastructure
+### GFT $5K 2-Step GOAT ⭐ PRIMARY
+- **Capital:** $4,864.37 | **PnL:** -$135.63
+- **Phase 1 target:** +$400 (8%) → need **+$535.63 more** + min 3 trading days (have 2)
+- **Phase 2 target:** +$300 (6%) after Phase 1 passes → unlocks master $5K account
+- **Goal:** Master $5K → withdraw profits → fund CB6 Quantum infrastructure
 - **Daily loss limit:** $200 (4%) | **Max total loss:** $500 (10%)
-- **Risk/trade:** 0.25% = $12.50 normal | 0.12% = $6 reduced | 0.30% = $15 A+
-- **Active symbols:** XAGUSD + USOIL (XAUUSD PERMANENTLY DISABLED)
+- **Internal guards:** Warn $100 | Reduce 50% at $140 | Hard stop at $170
+- **Risk/trade:** 0.50% = $24.32 normal | 0.25% = $12.16 reduced | 0.75% = $36.48 A+ (Phase 1 growth mode — intentional 2× conservative baseline)
+- **Active symbols:** XAUUSD + XAGUSD + USOIL (H4 bias mandatory before Gold entry)
 - **Kill zones:** London 07-12 UTC | NY 16-20 UTC
 - **State file:** `data/gft_5k/state.json`
 - **Config:** `forex_engine/prop_firms/gft/gft_config.py`
+
+### GFT $1K Instant Live ⭐ SECONDARY
+- **Capital:** $982.53 | **PnL:** -$17.47
+- **Goal:** Trade live, withdraw profits freely — real funded account
+- **Daily DD limit:** $30 (3%) | **Max DD limit:** $60 (6%)
+- **Internal guards:** Warn $25 | Hard stop at $30
+- **Risk/trade:** 0.25% = $2.50/trade | Max lot: 0.01
+- **Active symbols:** XAUUSD + XAGUSD + USOIL (H4 bias mandatory before Gold entry)
+- **Kill zones:** London 07-12 UTC | NY 16-20 UTC
+- **State file:** `data/gft_1k_instant/state.json`
+- **Config:** `forex_engine/gft_1k_instant/config.py`
+- **Engine:** `forex_engine/gft_1k_instant/`
+
+### NSE Engine — Fyers Live Account ⭐ REAL MONEY
+- **Balance:** ₹26,000 real (Fyers broker, not paper)
+- **Markets:** NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY — index futures + options ONLY
+- **Strategy:** ICT Silver Bullet — CHoCH + BOS + FVG sweep combo
+- **Windows:** 10:00-11:00 IST | 13:00-14:00 IST | 15:00-15:30 IST
+- **SL rule:** Sweep wick extreme + 10-15pt buffer
+- **H4 bias:** Mandatory before entry
+- **Data source:** TrueData (primary, trial until Jun 9) → Fyers API fallback
+- **Entry:** `python auto_token.py` → refreshes token → auto-launches NSE bot
+- **Journal:** `data/trade_journal.csv`
+
+### FTMO Free Trial ($10,000) — DEPRIORITIZED, DO NOT FOCUS
+- **Capital:** $9,804.91 | **PnL:** -$195.09 | **Deadline:** ~June 6, 2026
+- Keep code running as-is. No new features, debugging, or analysis effort.
+- **State file:** `data/ftmo_10k/state.json`
 
 ---
 
@@ -76,8 +100,9 @@ c:\cb6_bot\
 │   └── ...
 │
 ├── data/
-│   ├── ftmo_10k/state.json            ← FTMO live state (read before editing)
-│   └── gft_5k/state.json             ← GFT live state (read before editing)
+│   ├── gft_5k/state.json             ← GFT $5K live state (read before editing)
+│   ├── gft_1k_instant/state.json     ← GFT $1K Instant live state (read before editing)
+│   └── ftmo_10k/state.json           ← FTMO state (deprioritized, read-only)
 │
 ├── ml/
 │   └── ...                            ← DNN+CNN+RNN shadow ML system (shadow only, never touches orders)
@@ -108,9 +133,9 @@ c:\cb6_bot\
 - **Kill zones:** London 07-12 UTC | NY 16-20 UTC
 - **Entry pattern:** Sweep DOL → CHoCH → FVG fill
 - **A+ setup:** ≥55% similarity score → 1.25× lots | ≥70% → 1.5× | ≥85% → 2×
-- **XAUUSD:** Paused on FTMO (3-loss disaster May 22 vs H4 uptrend), PERMANENTLY DISABLED on GFT
-- **GFT:** XAGUSD + USOIL only
-- **FTMO:** XAGUSD, USOIL, EURUSD
+- **XAUUSD:** PERMANENTLY DISABLED on all GFT accounts. No exceptions.
+- **GFT $5K + GFT $1K Instant:** XAGUSD + USOIL only
+- **FTMO (deprioritized):** XAGUSD, USOIL, EURUSD — runs as-is, no active tuning
 - **H4 bias filter:** Required before any trade entry
 - **News blackout:** No entries within 30 min of high-impact news
 
@@ -119,7 +144,8 @@ c:\cb6_bot\
 ## ML System Notes
 
 - **Shadow mode only** — predictions logged, NEVER used to place or block orders
-- **Models:** DNN + CNN + RNN (one set per market: NSE, FTMO, GFT)
+- **Models:** DNN + CNN + RNN (one set per market: NSE, GFT)
+- **Priority:** Train/optimize ML on GFT $5K and GFT $1K Instant trade data first
 - **Auto-retrain:** Every 20 trades or 7 days (whichever comes first)
 - **Commands:** `/ml_status`, `/ml_train` on both Telegram bots
 - **Location:** `ml/` directory
@@ -172,7 +198,8 @@ python -c "import ast; ast.parse(open('file.py', encoding='utf-8').read()); prin
 
 - **Windows encoding:** Always `encoding='utf-8'` when reading Python files
 - **State files:** Always read before any edit; never corrupt JSON structure
-- **GFT poll speed:** Must be 15s (not 30s/60s) for simultaneous FTMO+GFT entries
+- **GFT poll speed:** Must be 15s (not 30s/60s)
 - **GFT kill zones:** Must be `[(7,12),(16,20)]` — NOT the old narrow `[(8,9),(15,16),(19,20)]`
-- **FTMO best day cap:** $250 hard cap — already coded in `ftmo_state.py`, don't remove
+- **GFT $1K Instant:** `CB6_GFT_1K_INSTANT_ENABLED` + `CB6_GFT_1K_INSTANT_LIVE_EXECUTION` must both be `true` for live trading
+- **XAUUSD on GFT:** PERMANENTLY DISABLED — `disabled_symbols` in both GFT configs, never remove
 - **SL buffer:** Always sweep wick extreme + 10-15pt for NSE, never tight 5pt

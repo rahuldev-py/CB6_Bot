@@ -1,5 +1,8 @@
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 
 def _bool_env(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
@@ -34,9 +37,13 @@ GFT_1K_INSTANT_PROFILE = {
     "max_lot": _float_env("CB6_GFT_1K_INSTANT_MAX_LOT", "0.01"),
     "magic": _int_env("CB6_GFT_1K_INSTANT_MAGIC", "100061"),
     "state_dir": os.getenv("CB6_GFT_1K_INSTANT_STATE_DIR", "data/gft_1k_instant"),
-    "enabled_symbols": ["XAGUSD", "USOIL"],
-    "disabled_symbols": ["XAUUSD"],
-    "allowed_note": "XAUUSD permanently disabled on GFT",
+    "enabled_symbols": ["XAUUSD", "XAGUSD", "USOIL"],
+    "disabled_symbols": [],
+    # XAUUSD lot sizing: risk$2.50 / (100oz × SL_distance)
+    # SL $2.50 → 0.01 lots (minimum — only viable with very tight SL)
+    # SL > $2.50 → lots < 0.01 → engine auto-skips (below min_lot)
+    # Effectively: $1K only trades Gold when setup has ≤$2.50 SL distance
+    "max_lot_per_symbol": {"XAUUSD": 0.01, "XAGUSD": 0.01, "USOIL": 0.01},
     "min_rr": 1.5,
     "max_open_positions": 1,
     "alert_prefix": "[GFT-1K-INSTANT]",

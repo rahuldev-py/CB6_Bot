@@ -3,6 +3,19 @@
     "claudeCode.allowDangerouslySkipPermissions": true,
     "claudeCode.hideOnboarding": false,
 
+    // ── Chat Customizations (Microsoft extension) ─────────────────────────────
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+    "github.copilot.chat.reviewSelection.instructions": [
+        { "text": "Focus on GFT $5K and GFT $1K Instant accounts. FTMO is deprioritized." },
+        { "text": "XAUUSD must never be enabled on any GFT account." },
+        { "text": "Never suggest paper_mode=True in live configs." },
+        { "text": "Always use encoding='utf-8' when opening Python files." }
+    ],
+    "github.copilot.chat.testGeneration.instructions": [
+        { "text": "Test GFT risk guards: daily DD, max DD, lot sizing, XAUUSD block." },
+        { "text": "State file tests must read before write, never corrupt JSON." }
+    ],
+
     // ── Python / Pylance ──────────────────────────────────────────────────────
     "python.defaultInterpreterPath": "C:\\Users\\Rahul\\AppData\\Local\\Programs\\Python\\Python313\\python.exe",
     "python.envFile": "${workspaceFolder}/.env",

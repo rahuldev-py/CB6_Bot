@@ -24,6 +24,80 @@ def _jsonl_path(market: str, account: str = '') -> str:
     return os.path.join(_ROOT, 'data', 'ml', market, fname)
 
 
+# ── Macro regime enrichment (20-year NIFTY/BANKNIFTY daily context) ────────────
+def _apply_macro_features(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Stamps each trade row with 11 macro context features from 20yr daily data.
+    Uses entry_time → nearest past daily bar lookup.
+    Gracefully returns neutral defaults if historical data not loaded.
+    """
+    try:
+        from ml_engine.features.macro_regime_features import (
+            add_macro_regime_features, MACRO_REGIME_FEATURE_COLS,
+        )
+        return add_macro_regime_features(df)
+    except Exception as e:
+        logger.warning(f"ML data_pipeline: macro features unavailable — {e}")
+        # Add zero-default columns so feature matrix stays consistent
+        _defaults = {
+            'nifty_regime_ord': 0.0, 'nifty_sma200_dist_pct': 0.0,
+            'nifty_atr_pct_rank': 50.0, 'nifty_ret_1y_pct': 0.0,
+            'nifty_ret_3m_pct': 0.0, 'rbi_stance_ord': 2.0,
+            'macro_shock_active': 0.0, 'shock_severity': 0.0,
+            'shock_bearish': 0.0, 'is_black_swan': 0.0,
+            'is_election_week': 0.0,
+        }
+        for col, val in _defaults.items():
+            df[col] = val
+        return df
+
+
+# ── Macro feature column names (appended to both NSE and Forex) ────────────────
+_MACRO_COLS = [
+    'nifty_regime_ord',       # -2 (strong bear) → +2 (strong bull)
+    'nifty_sma200_dist_pct',  # % above/below SMA200 at trade time
+    'nifty_atr_pct_rank',     # volatility percentile 0-100
+    'nifty_ret_1y_pct',       # 1-year return at trade time
+    'nifty_ret_3m_pct',       # 3-month return at trade time
+    'rbi_stance_ord',         # 0=ultra_accom → 4=tightening
+    'macro_shock_active',     # 1 if any active shock
+    'shock_severity',         # 0-3
+    'shock_bearish',          # 1 if shock bias BEARISH
+    'is_black_swan',          # 1 if severity == 3
+    'is_election_week',       # 1 if in election window
+]
+
+
+# ── Multicollinearity guard ────────────────────────────────────────────────────
+
+def _check_multicollinearity(d: pd.DataFrame, market: str) -> None:
+    """
+    Warn if rbi_stance_ord and nifty_regime_ord are nearly colinear (r > 0.90).
+    These must stay as distinct dimensions: liquidity (RBI) vs price velocity (regime).
+    A corr > 0.90 causes redundant gradient updates and risks unstable training.
+    Only runs when enough rows exist for a meaningful correlation.
+    """
+    if len(d) < 10:
+        return
+    try:
+        rbi = pd.to_numeric(d.get('rbi_stance_ord',   pd.Series(dtype=float)), errors='coerce').dropna()
+        reg = pd.to_numeric(d.get('nifty_regime_ord', pd.Series(dtype=float)), errors='coerce').dropna()
+        if len(rbi) < 5 or rbi.std() < 1e-6 or reg.std() < 1e-6:
+            return   # all-constant → no meaningful correlation
+        common = rbi.index.intersection(reg.index)
+        corr = float(np.corrcoef(rbi[common].values, reg[common].values)[0, 1])
+        if abs(corr) > 0.90:
+            logger.warning(
+                f"ML [{market}] multicollinearity: rbi_stance_ord ↔ nifty_regime_ord "
+                f"corr={corr:+.3f} (>{0.90}) — features may share gradient signal. "
+                f"Consider adding rbi_rate_delta or credit_spread as orthogonal separator."
+            )
+        else:
+            logger.debug(f"ML [{market}] multicollinearity OK: rbi/regime corr={corr:+.3f}")
+    except Exception as e:
+        logger.debug(f"Multicollinearity check error [{market}]: {e}")
+
+
 # ── Categorical encodings ──────────────────────────────────────────────────────
 _DIRECTION  = {'BULLISH': 1, 'BUY': 1, 'BEARISH': -1, 'SELL': -1, 'UNKNOWN': 0}
 _MSS        = {'CHOCH': 1,  'BOS': 0,  'UNKNOWN': -1}
@@ -113,7 +187,7 @@ NSE_FEATURES = [
     'ist_hour', 'day_of_week', 'session_enc',
     # in_fvg / in_ote
     'in_fvg', 'in_ote',
-]
+] + _MACRO_COLS
 
 def build_nse_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -122,7 +196,7 @@ def build_nse_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.nda
       y_class  — (N,) binary  1=WIN  0=LOSS
       y_r      — (N,) float32 R-multiple achieved
     """
-    d = df.copy()
+    d = _apply_macro_features(df.copy())
 
     d['direction_enc']  = d['direction'].apply(lambda v: _enc(v, _DIRECTION))
     d['mss_type_enc']   = d['mss_type'].apply(lambda v: _enc(v, _MSS))
@@ -148,6 +222,7 @@ def build_nse_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.nda
     y_class = (d['result'].str.upper() == 'WIN').astype(np.float32).values
     y_r     = pd.to_numeric(d.get('r_multiple', pd.Series([0]*len(d))),
                              errors='coerce').fillna(0.0).values.astype(np.float32)
+    _check_multicollinearity(d, 'nse')
     return X, y_class, y_r
 
 
@@ -173,10 +248,10 @@ FOREX_FEATURES = [
     'spread_at_entry',
     # in_fvg
     'in_fvg',
-]
+] + _MACRO_COLS
 
 def build_forex_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    d = df.copy()
+    d = _apply_macro_features(df.copy())
 
     d['direction_enc']  = d['direction'].apply(lambda v: _enc(v, _DIRECTION))
     d['mss_type_enc']   = d['mss_type'].apply(lambda v: _enc(v, _MSS))
@@ -203,6 +278,7 @@ def build_forex_features(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.n
     y_class = (d['result'].str.upper() == 'WIN').astype(np.float32).values
     y_r     = pd.to_numeric(d.get('r_multiple', pd.Series([0]*len(d))),
                              errors='coerce').fillna(0.0).values.astype(np.float32)
+    _check_multicollinearity(d, 'forex')
     return X, y_class, y_r
 
 

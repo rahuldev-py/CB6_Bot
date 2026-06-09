@@ -11,13 +11,12 @@ _MARKET_CLOSE_MIN = 15 * 60 + 30  # 15:30
 def _in_market_hours() -> bool:
     now = datetime.now()
     m   = now.hour * 60 + now.minute
-    # Skip weekends
     if now.weekday() >= 5:
         return False
     return _MARKET_OPEN_MIN <= m <= _MARKET_CLOSE_MIN
 
 _tasks      = []
-_repeating  = []   # [{interval_min, callback, name, last_run_minute}]
+_repeating  = []   # [{interval_sec, callback, name, last_run_ts}]
 _lock       = threading.Lock()
 
 
@@ -42,14 +41,24 @@ def schedule_weekly(weekday, hour, minute, callback, name="task"):
 
 
 def schedule_repeating(interval_minutes, callback, name="repeating"):
-    """Fire callback every interval_minutes throughout the trading day.
-    Does not enforce market-hours — use can_enter_trade() inside the callback."""
+    """Fire callback every interval_minutes (float OK) throughout the trading day."""
     with _lock:
         _repeating.append({
-            'interval': interval_minutes,
-            'callback': callback,
-            'name'    : name,
-            'last_run_minute': -1,
+            'interval_sec': interval_minutes * 60.0,
+            'callback'    : callback,
+            'name'        : name,
+            'last_run_ts' : 0.0,
+        })
+
+
+def schedule_repeating_seconds(interval_seconds, callback, name="repeating"):
+    """Fire callback every interval_seconds (minimum 15s) throughout the trading day."""
+    with _lock:
+        _repeating.append({
+            'interval_sec': max(15.0, float(interval_seconds)),
+            'callback'    : callback,
+            'name'        : name,
+            'last_run_ts' : 0.0,
         })
 
 
@@ -57,8 +66,7 @@ def _loop():
     while True:
         now      = datetime.now()
         date_str = now.strftime('%Y-%m-%d')
-        # Absolute minute-of-day — used for interval tasks
-        now_minute = now.hour * 60 + now.minute
+        now_ts   = time.monotonic()
 
         with _lock:
             for task in _tasks:
@@ -80,9 +88,9 @@ def _loop():
 
             if _in_market_hours():
                 for rtask in _repeating:
-                    last = rtask['last_run_minute']
-                    if last < 0 or (now_minute - last) >= rtask['interval']:
-                        rtask['last_run_minute'] = now_minute
+                    elapsed = now_ts - rtask['last_run_ts']
+                    if elapsed >= rtask['interval_sec']:
+                        rtask['last_run_ts'] = now_ts
                         try:
                             logger.debug(f"Scheduler: repeating '{rtask['name']}'")
                             threading.Thread(
@@ -92,7 +100,7 @@ def _loop():
                         except Exception as e:
                             logger.error(f"Scheduler repeating error ({rtask['name']}): {e}")
 
-        time.sleep(30)
+        time.sleep(15)   # 15s heartbeat — supports 15-second scan cadence
 
 
 def start_scheduler():

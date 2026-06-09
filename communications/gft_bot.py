@@ -63,12 +63,13 @@ AUTHORIZED_CHAT_IDS = {
 COMMAND_RATE_LIMIT_SECS = int(os.getenv('GFT_TELEGRAM_RATE_LIMIT_SECS', '3'))
 CONFIRM_TTL_SECS        = int(os.getenv('GFT_CONFIRM_TTL_SECS', '30'))
 
-# ── GFT MT5 connector reference (set by gft_5k_2step at startup) ───────────────
-_last_update_id   = 0
-_listener_running = False
-_connector_ref    = None   # GFT MT5Connector
-_last_command_at  = {}
-_pending_confirms = {}
+# ── GFT MT5 connector references ───────────────────────────────────────────────
+_last_update_id     = 0
+_listener_running   = False
+_connector_ref      = None   # GFT $5K 2-Step MT5Connector
+_connector_10k_ref  = None   # GFT $10K Instant MT5Connector
+_last_command_at    = {}
+_pending_confirms   = {}
 
 
 def _mask(token: str) -> str:
@@ -86,6 +87,12 @@ def set_connector(connector):
 
 # Keep the old name as an alias so gft_5k_2step.py import is one line
 set_gft_connector = set_connector
+
+
+def set_10k_connector(connector):
+    """Called by GFT10KWorker.run() to wire in the live MT5 connector."""
+    global _connector_10k_ref
+    _connector_10k_ref = connector
 
 
 # ── Balance helper ──────────────────────────────────────────────────────────────
@@ -130,7 +137,7 @@ def _rate_limited(chat_id: str, command: str) -> bool:
 
 
 def _needs_confirmation(cmd: str, arg: str) -> bool:
-    if cmd in ('/gft_stop', '/gft_resume'):
+    if cmd in ('/gft_stop', '/gft_resume', '/g10k_stop', '/g10k_resume'):
         return True
     return cmd == '/gft_exit' and bool(arg.strip())
 
@@ -180,8 +187,14 @@ def _cmd_start():
             "/gft_lots      Live GFT lot sizes + risk\n"
             "/gft_exit      Close a trade — /gft_exit A\n\n"
             "<b>CONTROL</b>\n"
-            "/gft_stop      Pause GFT engine\n"
-            "/gft_resume    Resume GFT engine\n\n"
+            "/gft_stop      Pause GFT $5K engine\n"
+            "/gft_resume    Resume GFT $5K engine\n\n"
+            "<b>GFT $10K INSTANT</b>\n"
+            "/g10k_status   $10K engine health + capital\n"
+            "/g10k_pnl      $10K P&amp;L + DD tracker\n"
+            "/g10k_positions $10K open trades\n"
+            "/g10k_stop     Pause $10K engine\n"
+            "/g10k_resume   Resume $10K engine\n\n"
             "<b>ML &amp; ANALYTICS</b>\n"
             "/ml_status     ML shadow accuracy + model status\n"
             "/ml_train      Force ML retrain\n\n"
@@ -229,6 +242,32 @@ def _cmd_status():
         paused    = 'PAUSED' if state.get('paused') else 'RUNNING'
         open_line = f"  open ${open_pnl:+.2f}" if open_pnl != 0 else ""
 
+        # GFT $1K Instant summary
+        try:
+            from forex_engine.gft_1k_instant.state import load_state as _1k_load, HEARTBEAT_FILE as _1k_hb
+            _1k = _1k_load()
+            _1k_cap  = _1k.get('capital', 1000.0)
+            _1k_dpnl = _1k.get('daily_pnl', 0.0)
+            _1k_paus = '⏸' if _1k.get('paused') else '▶'
+            _1k_hb_s = _hb_age(_1k_hb)
+            _1k_line = (f"\n<b>GFT $1K Instant [{_1k_paus}]</b>  hb:{_1k_hb_s}\n"
+                        f"Balance    : ${_1k_cap:,.2f}  |  Daily: ${_1k_dpnl:+.2f}")
+        except Exception:
+            _1k_line = "\n<b>GFT $1K Instant</b>  [state unavailable]"
+
+        # GFT $10K Instant summary
+        try:
+            from forex_engine.gft_10k.state import load_state as _10k_load, HEARTBEAT_FILE as _10k_hb
+            _10k = _10k_load()
+            _10k_cap  = _10k.get('capital', 10000.0)
+            _10k_dpnl = _10k.get('daily_pnl', 0.0)
+            _10k_paus = '⏸' if _10k.get('paused') else '▶'
+            _10k_hb_s = _hb_age(_10k_hb)
+            _10k_line = (f"\n<b>GFT $10K Instant [{_10k_paus}]</b>  hb:{_10k_hb_s}\n"
+                         f"Balance    : ${_10k_cap:,.2f}  |  Daily: ${_10k_dpnl:+.2f}")
+        except Exception:
+            _10k_line = "\n<b>GFT $10K Instant</b>  [state unavailable]"
+
         _send(
             f"<b>CB6 QUANTUM — GFT STATUS</b>\n\n"
             f"Session    : {session} ({utc_hour:02d}:xx UTC)\n\n"
@@ -238,6 +277,8 @@ def _cmd_status():
             f"Phase      : {gs['phase'].upper().replace('_', ' ')}\n"
             f"Trades     : {gs['open_trades']} open | {gs['daily_trades']} today\n"
             f"Risk Mode  : {gs['risk_mode'].upper()}"
+            f"{_1k_line}"
+            f"{_10k_line}"
         )
     except Exception as e:
         _send(f"Status error: {e}")
@@ -669,8 +710,14 @@ def _cmd_help():
         "/gft_journal   Last 5 GFT closed trades\n"
         "/gft_lots      Live GFT lot sizes + risk\n"
         "/gft_exit      List open — /gft_exit A to close\n\n"
-        "/gft_stop      Pause GFT engine\n"
-        "/gft_resume    Resume GFT engine\n\n"
+        "/gft_stop      Pause GFT $5K engine\n"
+        "/gft_resume    Resume GFT $5K engine\n\n"
+        "<b>GFT $10K INSTANT</b>\n"
+        "/g10k_status   $10K health + capital\n"
+        "/g10k_pnl      $10K P&amp;L + DD bars\n"
+        "/g10k_positions $10K open trades\n"
+        "/g10k_stop     Pause $10K engine\n"
+        "/g10k_resume   Resume $10K engine\n\n"
         "/ml_status     ML shadow accuracy + model status\n"
         "/ml_train      Force retrain\n\n"
         "/gft_help      This message"
@@ -831,6 +878,195 @@ def _cmd_journal():
         _send(f"Journal error: {e}")
 
 
+# ── GFT $10K commands ──────────────────────────────────────────────────────────
+
+def _cmd_10k_status():
+    try:
+        from forex_engine.gft_10k.state import load_state as _load, HEARTBEAT_FILE, reset_daily_if_needed
+        from forex_engine.gft_10k.config import GFT_10K_PROFILE as _P, live_execution_enabled
+
+        state   = reset_daily_if_needed(_load())
+        capital = state.get('capital', _P['account_size'])
+        dpnl    = state.get('daily_pnl', 0.0)
+        open_t  = state.get('open_trades', [])
+        paused  = '⏸ PAUSED' if state.get('paused') else '▶ RUNNING'
+        mode    = 'LIVE — GFT $10K MT5' if live_execution_enabled() else 'Paper (terminal pending)'
+
+        base = os.path.dirname(os.path.dirname(__file__))
+        def _hb(p):
+            return f"{int(time.time() - os.path.getmtime(p))}s ago" if os.path.exists(p) else 'N/A'
+
+        if _connector_10k_ref:
+            try:
+                eq  = _connector_10k_ref.get_equity()
+                bal = _connector_10k_ref.get_balance()
+                if bal and bal > 0:
+                    capital = bal
+                    dpnl    = round(eq - bal, 2)
+            except Exception:
+                pass
+
+        total_pnl   = round(capital - _P['account_size'], 2)
+        daily_lim   = _P['daily_dd_limit']
+        daily_used  = abs(dpnl) if dpnl < 0 else 0.0
+        daily_pct   = round(daily_used / daily_lim * 100, 1) if daily_lim else 0
+
+        open_line = ''
+        for t in open_t:
+            sym  = t.get('symbol', '?')
+            dirn = 'L' if t.get('direction') == 'BULLISH' else 'S'
+            lots = t.get('lots', 0)
+            open_line += f"\n  • {sym} {dirn} {lots}L id:{t.get('id', '?')}"
+
+        _send(
+            f"<b>CB6 QUANTUM — GFT $10K STATUS</b>\n\n"
+            f"Mode       : {mode}\n"
+            f"Engine     : {paused}  hb:{_hb(HEARTBEAT_FILE)}\n\n"
+            f"<b>ACCOUNT</b>\n"
+            f"Balance    : ${capital:,.2f}  (start ${_P['account_size']:,.0f})\n"
+            f"Total PnL  : ${total_pnl:+.2f}\n"
+            f"Daily PnL  : ${dpnl:+.2f}\n"
+            f"Daily DD   : ${daily_used:.2f} / ${daily_lim:.0f}  ({daily_pct}%)\n\n"
+            f"<b>OPEN TRADES ({len(open_t)})</b>"
+            f"{open_line if open_t else chr(10) + '  None'}\n\n"
+            f"Symbols    : XAGUSD | USOIL  (XAUUSD ⛔ DISABLED)\n"
+            f"Risk/trade : {_P['risk_per_trade_pct']}% = ${_P['account_size'] * _P['risk_per_trade_pct'] / 100:.0f}  max lot {_P['max_lot']}"
+        )
+    except Exception as e:
+        _send(f"10K status error: {e}")
+
+
+def _cmd_10k_pnl():
+    try:
+        from forex_engine.gft_10k.state import load_state as _load, reset_daily_if_needed
+        from forex_engine.gft_10k.config import GFT_10K_PROFILE as _P, live_execution_enabled
+        from forex_engine.gft_10k.risk import daily_drawdown, max_drawdown
+
+        state   = reset_daily_if_needed(_load())
+        capital = state.get('capital', _P['account_size'])
+
+        if _connector_10k_ref:
+            try:
+                bal = _connector_10k_ref.get_balance()
+                if bal and bal > 0:
+                    capital = bal
+            except Exception:
+                pass
+
+        total_pnl   = round(capital - _P['account_size'], 2)
+        dd_daily    = daily_drawdown(state)
+        dd_total    = max_drawdown(state)
+        closed      = state.get('closed_trades', [])
+        wins        = sum(1 for t in closed if t.get('pnl_usd', 0) > 0)
+        losses      = len(closed) - wins
+        wr          = round(wins / len(closed) * 100, 1) if closed else 0.0
+        mode        = 'LIVE MT5' if live_execution_enabled() else 'Paper'
+
+        def _bar(used, limit):
+            pct    = min(used / limit * 100, 100) if limit > 0 else 0
+            filled = int(pct / 10)
+            return f"{'█'*filled}{'░'*(10-filled)} {pct:.0f}%"
+
+        _send(
+            f"<b>CB6 QUANTUM — GFT $10K P&amp;L</b>  [{mode}]\n\n"
+            f"Balance    : ${capital:,.2f}\n"
+            f"Total PnL  : ${total_pnl:+.2f}\n\n"
+            f"<b>DAILY DD (limit ${_P['daily_dd_limit']:.0f})</b>\n"
+            f"Used today : ${dd_daily:.2f}\n"
+            f"{_bar(dd_daily, _P['daily_dd_limit'])}\n\n"
+            f"<b>TOTAL DD (limit ${_P['max_dd_limit']:.0f})</b>\n"
+            f"Used total : ${dd_total:.2f}\n"
+            f"{_bar(dd_total, _P['max_dd_limit'])}\n\n"
+            f"<b>TRADES</b>\n"
+            f"Closed     : {len(closed)}  ({wins}W / {losses}L  {wr}% WR)\n"
+            f"Open       : {len(state.get('open_trades', []))}"
+        )
+    except Exception as e:
+        _send(f"10K PnL error: {e}")
+
+
+def _cmd_10k_positions():
+    try:
+        from forex_engine.gft_10k.state import load_state as _load
+        from forex_engine.forex_instruments import INSTRUMENTS
+
+        trades = _load().get('open_trades', [])
+        if not trades:
+            _send("GFT $10K — No open positions.")
+            return
+
+        for t in trades:
+            sym     = t['symbol']
+            cfg     = INSTRUMENTS.get(sym, {})
+            is_long = t['direction'] == 'BULLISH'
+            entry   = t['entry_price']
+            lots    = t['lots']
+            sl      = t.get('stop_loss', t.get('current_sl', 0))
+            tp      = t.get('target', 0)
+            contract = cfg.get('contract_size', 5000)
+
+            price = None
+            if _connector_10k_ref:
+                try:
+                    price = _connector_10k_ref.get_price(sym)
+                except Exception:
+                    pass
+
+            if price:
+                upnl    = round(lots * contract * (price - entry) * (1 if is_long else -1), 2)
+                price_s = f"{price:.5f}"
+            else:
+                upnl    = 0.0
+                price_s = 'N/A'
+
+            dir_s = 'LONG' if is_long else 'SHORT'
+            ghost = t.get('ticket', 0) == 0
+            ghost_w = "\n⚠️ NO MT5 ORDER — state only" if ghost else ""
+            _send(
+                f"<b>[GFT-10K] {cfg.get('label', sym)} — {dir_s}</b>  [{t['id']}]{ghost_w}\n\n"
+                f"Entry      : {entry}\n"
+                f"Live Price : {price_s}\n"
+                f"Unrealised : ${upnl:+.2f}\n\n"
+                f"SL         : {sl}\n"
+                f"TP         : {tp}\n\n"
+                f"Lots       : {lots}\n"
+                f"Risk       : ${t.get('risk_usd', 0):.2f}\n"
+                f"Opened     : {t.get('entry_time', '?')}"
+            )
+            time.sleep(0.3)
+    except Exception as e:
+        _send(f"10K positions error: {e}")
+
+
+def _cmd_10k_stop():
+    try:
+        from forex_engine.gft_10k.state import load_state as _load, save_state as _save
+        state = _load()
+        state['paused'] = True
+        _save(state)
+        _send(
+            "<b>GFT $10K ENGINE — PAUSED</b>\n\n"
+            "No new $10K trades will open.\n"
+            "Send /g10k_resume to re-enable."
+        )
+    except Exception as e:
+        _send(f"10K stop error: {e}")
+
+
+def _cmd_10k_resume():
+    try:
+        from forex_engine.gft_10k.state import load_state as _load, save_state as _save
+        state = _load()
+        state['paused'] = False
+        _save(state)
+        _send(
+            "<b>GFT $10K ENGINE — RESUMED</b>\n\n"
+            "GFT $10K engine : RUNNING"
+        )
+    except Exception as e:
+        _send(f"10K resume error: {e}")
+
+
 # ── ML commands (shared read-only) ─────────────────────────────────────────────
 
 def _cmd_ml_status(arg: str):
@@ -870,20 +1106,27 @@ def _cmd_ml_train(arg: str):
 # ── Dispatch ────────────────────────────────────────────────────────────────────
 
 _COMMANDS = {
-    '/start'        : _cmd_start,
-    '/gft_status'   : _cmd_status,
-    '/gft_pnl'      : _cmd_pnl,
-    '/gft_phase'    : _cmd_phase,
-    '/gft_positions': _cmd_positions,
-    '/gft_lots'     : _cmd_lots,
-    '/gft_journal'  : _cmd_journal,
-    '/gft_stop'     : _cmd_stop,
-    '/gft_resume'   : _cmd_resume,
-    '/gft_terminal' : _cmd_terminal,
-    '/gft_help'     : _cmd_help,
-    '/gft_exit'     : _cmd_exit,
-    '/ml_status'    : _cmd_ml_status,
-    '/ml_train'     : _cmd_ml_train,
+    '/start'         : _cmd_start,
+    '/gft_status'    : _cmd_status,
+    '/gft_pnl'       : _cmd_pnl,
+    '/gft_phase'     : _cmd_phase,
+    '/gft_positions' : _cmd_positions,
+    '/gft_lots'      : _cmd_lots,
+    '/gft_journal'   : _cmd_journal,
+    '/gft_stop'      : _cmd_stop,
+    '/gft_resume'    : _cmd_resume,
+    '/gft_terminal'  : _cmd_terminal,
+    '/gft_help'      : _cmd_help,
+    '/gft_exit'      : _cmd_exit,
+    # GFT $10K Instant
+    '/g10k_status'   : _cmd_10k_status,
+    '/g10k_pnl'      : _cmd_10k_pnl,
+    '/g10k_positions': _cmd_10k_positions,
+    '/g10k_stop'     : _cmd_10k_stop,
+    '/g10k_resume'   : _cmd_10k_resume,
+    # ML (shared)
+    '/ml_status'     : _cmd_ml_status,
+    '/ml_train'      : _cmd_ml_train,
 }
 
 

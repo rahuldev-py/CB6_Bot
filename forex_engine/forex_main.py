@@ -12,9 +12,11 @@
 # Legacy launcher at root/forex_main.py continues to work for FTMO paper mode.
 
 import argparse
+import datetime
 import os
 import subprocess
 import sys
+import threading
 import time
 import traceback
 
@@ -32,29 +34,26 @@ for _k, _v in _env.items():
 from utils.logger import logger
 
 
-def _banner(profile: str, mode: str):
+def _banner(profile: str, mode: str, symbols: str | None = None):
     logger.info("=" * 60)
     logger.info("CB6 QUANTUM — MODULAR FOREX ENGINE")
     logger.info(f"Profile  : {profile}")
     logger.info(f"Mode     : {mode}")
     logger.info("Strategy : ICT Silver Bullet · 15m · CHoCH/BOS -> FVG -> ATR targets")
-    logger.info("Symbols  : XAUUSD 46% WR PF3.63 | XAGUSD 53% WR PF5.34 | USOIL 69% WR PF8.43")
-    logger.info("           MT5 FTMO 15m backtest 2024-2026 (2yr real broker data)")
+    if symbols:
+        logger.info(f"Symbols  : {symbols}")
+    else:
+        logger.info("Symbols  : XAGUSD 53% WR PF5.34 | USOIL 69% WR PF8.43 | (XAUUSD disabled)")
     logger.info("Sessions : London 07-12 UTC | NY 16-20 UTC")
     logger.info("ATR T1   : Entry +/- 0.15*ATR_daily  |  T2 skip if >0.50*ATR_daily")
     logger.info("=" * 60)
 
 
-def _run_ftmo():
-    _banner('FTMO Free Trial $10K', 'Paper (yfinance)' if os.getenv('FOREX_PAPER','true').lower()=='true' else 'LIVE MT5')
-    try:
-        from ml.auto_trainer import start_scheduler as _ml_sched
-        _ml_sched()
-        logger.info("ML auto-trainer scheduler started")
-    except Exception as _ml_e:
-        logger.warning(f"ML scheduler start skipped: {_ml_e}")
-    from forex_engine.forex_worker import main as _worker_main
-    _worker_main()
+def _run_gft_10k():
+    live = os.getenv('CB6_GFT_10K_LIVE_EXECUTION', 'false').lower() == 'true'
+    _banner('GFT $10K Instant', 'LIVE MT5' if live else 'Paper (awaiting credentials)')
+    from forex_engine.gft_10k.monitor import main as _worker_main
+    _worker_main(['--account-namespace', 'GFT_10K'])
 
 
 def _run_gft_2step():
@@ -129,19 +128,45 @@ def start_gft_1k_instant_worker(env: dict | None = None):
 
 
 def _run_all():
-    """Run FTMO and GFT 2-Step in separate Python processes."""
+    """Run GFT engines in separate Python processes."""
     logger.info("=" * 60)
     logger.info("CB6 QUANTUM — ALL FOREX ENGINES STARTING")
-    logger.info("  Engine 1 : FTMO Free Trial $10K")
-    logger.info("  Engine 2 : GFT $5K 2-Step GOAT (LIVE)")
-    logger.info("  Engine 3 : GFT $1K Instant (optional)")
+    logger.info("  Engine 1 : GFT $5K 2-Step GOAT (LIVE)")
+    logger.info("  Engine 2 : GFT $1K Instant (LIVE)")
+    logger.info("  Engine 3 : GFT $10K Instant (pending credentials)")
     logger.info("=" * 60)
+
+    # Start GFT $10K Telegram bot listener in this (supervisor) process.
+    # forex_bot.py reads state files from disk so it works without an MT5 connection.
+    # Starting here means the bot is always reachable even if the GFT_10K subprocess crashes.
+    try:
+        from communications.forex_bot import start_listening as _fx_listen, send_alert as _fx_alert
+        threading.Thread(target=_fx_listen, daemon=True, name="GFT10KTGBot").start()
+        logger.info("GFT $10K Telegram bot listener started (@cb6forexbot)")
+        # Give the listener 3s to drain old updates, then send startup alert
+        def _send_startup():
+            time.sleep(3)
+            try:
+                from forex_engine.gft_10k.config import GFT_10K_PROFILE as _P, live_execution_enabled
+                mode = 'LIVE MT5' if live_execution_enabled() else 'Paper'
+                syms = ' · '.join(_P['enabled_symbols'])
+                _fx_alert(
+                    f"<b>CB6 QUANTUM — GFT $10K INSTANT</b>\n\n"
+                    f"Mode     : {mode}\n"
+                    f"Markets  : {syms}\n"
+                    f"Sessions : London 08-09 UTC · NY 15-16 UTC\n\n"
+                    f"Bot ready — type /start for full menu"
+                )
+            except Exception as _ae:
+                logger.warning(f"GFT $10K startup alert failed: {_ae}")
+        threading.Thread(target=_send_startup, daemon=True, name="GFT10KStartupAlert").start()
+    except Exception as _e:
+        logger.warning(f"GFT $10K bot listener failed to start: {_e}")
 
     # MT5 is effectively process-global. Running both accounts as threads can
     # make one account overwrite the other's initialized terminal/session.
     env = os.environ.copy()
     specs = [
-        ('FTMO', [sys.executable, '-m', 'forex_engine.forex_main', '--profile', 'FTMO']),
         ('GFT_5K_2STEP', [sys.executable, '-m', 'forex_engine.forex_main', '--profile', 'GFT_5K_2STEP']),
     ]
     procs = {}
@@ -163,12 +188,41 @@ def _run_all():
             restarts['GFT_1K_INSTANT'] = 0
             next_delay['GFT_1K_INSTANT'] = 5
 
+        # GFT $10K — only starts when CB6_GFT_10K_ENABLED=true (credentials pending)
+        if env.get('CB6_GFT_10K_ENABLED', 'false').lower() == 'true':
+            _10k_cmd = [sys.executable, '-m', 'forex_engine.forex_main', '--profile', 'GFT_10K']
+            logger.info(f"[GFT_10K] starting subprocess: {' '.join(_10k_cmd)}")
+            procs['GFT_10K'] = subprocess.Popen(_10k_cmd, cwd=_ROOT, env=env)
+            restarts['GFT_10K'] = 0
+            next_delay['GFT_10K'] = 5
+            logger.info(f"[GFT_10K] started PID {procs['GFT_10K'].pid}")
+        else:
+            logger.info("[GFT_10K] disabled — set CB6_GFT_10K_ENABLED=true when credentials ready")
+
         while procs:
             for name, proc in list(procs.items()):
                 code = proc.poll()
                 if code is not None:
-                    logger.error(f"[{name}] subprocess exited with code {code}")
                     procs.pop(name, None)
+                    if name == 'GFT_10K' and code != 0:
+                        # Terminal not installed yet — back off 5 min between retries, max 3 attempts
+                        logger.error(f"[GFT_10K] subprocess exited with code {code} (terminal not installed?)")
+                        if restarts[name] < 3:
+                            delay = 300
+                            restarts[name] += 1
+                            logger.info(f"[GFT_10K] restarting #{restarts[name]}/3 in {delay}s — install MT5 at C:\\CB6_MT5\\MT5_GFT_10K\\")
+                            time.sleep(delay)
+                            procs[name] = subprocess.Popen(
+                                [sys.executable, '-m', 'forex_engine.forex_main', '--profile', 'GFT_10K'],
+                                cwd=_ROOT, env=env
+                            )
+                        else:
+                            logger.error("[GFT_10K] 3 restart attempts exhausted — install MT5 terminal and restart forex engine")
+                        continue
+                    if code == 0 and name == 'GFT_10K':
+                        logger.warning(f"[GFT_10K] exited cleanly — not restarting")
+                        continue
+                    logger.error(f"[{name}] subprocess exited with code {code}")
                     if restarts[name] < max_restarts:
                         if name == 'GFT_1K_INSTANT':
                             cmd = [
@@ -178,6 +232,8 @@ def _run_all():
                                 '--account-namespace',
                                 'GFT_1K_INSTANT',
                             ]
+                        elif name == 'GFT_10K':
+                            cmd = [sys.executable, '-m', 'forex_engine.forex_main', '--profile', 'GFT_10K']
                         else:
                             cmd = dict(specs)[name]
                         delay = next_delay[name]
@@ -214,11 +270,39 @@ def _run_all():
 
 _PROFILE_MAP = {
     'ALL'           : _run_all,
-    'FTMO'          : _run_ftmo,
     'GFT_5K_2STEP'  : _run_gft_2step,
     'GFT_1K_INSTANT': _run_gft_1k_instant,
+    'GFT_10K'       : _run_gft_10k,
     'PAPER_FOREX'   : _run_paper,
 }
+
+
+def _start_eod_scheduler():
+    """
+    Background thread: fires EOD report at 20:00 UTC (after GFT NY kill zone closes).
+    Runs once per calendar day. Harmless if forex_main is shut down before 20:00.
+    """
+    _fired_today: set = set()
+
+    def _loop():
+        while True:
+            now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+            date_key = now.strftime('%Y-%m-%d')
+            # Fire between 20:00-20:02 UTC, weekdays only (Mon=0 … Fri=4)
+            if (now.weekday() < 5 and now.hour == 20 and now.minute < 2
+                    and date_key not in _fired_today):
+                _fired_today.add(date_key)
+                try:
+                    from utils.eod_report import generate_and_send
+                    fpath = generate_and_send(trigger='GFT_CLOSE')
+                    logger.info(f"[EOD-Scheduler] GFT close report sent: {fpath}")
+                except Exception as _e:
+                    logger.error(f"[EOD-Scheduler] GFT close report failed: {_e}")
+            time.sleep(30)
+
+    t = threading.Thread(target=_loop, name='eod-scheduler', daemon=True)
+    t.start()
+    logger.info("EOD scheduler started — will fire at 20:00 UTC on weekdays")
 
 
 def main():
@@ -230,6 +314,16 @@ def main():
         help='Trading profile to run (default: ALL — FTMO + GFT 2-Step)',
     )
     args = parser.parse_args()
+
+    # Backfill closed trades into pattern DB on startup (idempotent — INSERT OR IGNORE)
+    try:
+        from ml_engine.learning.feedback_loop import backfill_all_state_files
+        backfill_all_state_files()
+    except Exception as _e:
+        logger.debug(f"Pattern DB backfill skipped: {_e}")
+
+    # Start background EOD scheduler (fires at 20:00 UTC after GFT NY close)
+    _start_eod_scheduler()
 
     runner = _PROFILE_MAP[args.profile]
     try:

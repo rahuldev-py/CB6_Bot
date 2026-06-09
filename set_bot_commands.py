@@ -6,9 +6,9 @@ Run once after any command changes — updates appear instantly in Telegram.
 Usage: python set_bot_commands.py
 
 Bots:
-  NSE bot   — TELEGRAM_BOT_TOKEN        (Indian markets)
-  FTMO bot  — TELEGRAM_BOT_TOKEN_FTMO   (FTMO $10K only)
-  GFT bot   — TELEGRAM_BOT_TOKEN_GFT    (GFT $5K 2-Step only)
+  NSE bot       — TELEGRAM_BOT_TOKEN        (Indian markets)
+  GFT $10K bot  — TELEGRAM_BOT_TOKEN_FTMO   (@cb6forexbot — GFT $10K Instant)
+  GFT bot       — TELEGRAM_BOT_TOKEN_GFT    (GFT $5K + $1K + $10K combined)
 """
 
 import os
@@ -70,24 +70,18 @@ NSE_COMMANDS = [
     {"command": "info",             "description": "Full command reference"},
 ]
 
-# ── FTMO Bot (FTMO $10K only) ──────────────────────────────────────────────────
-FTMO_COMMANDS = [
-    {"command": "start",                  "description": "FTMO overview + command list"},
-    {"command": "fx_status",              "description": "FTMO engine health + heartbeat"},
-    {"command": "fx_pnl",                 "description": "FTMO P&L + challenge progress"},
-    {"command": "fx_ftmo",                "description": "FTMO rule tracker with progress bars"},
-    {"command": "fx_terminals",           "description": "FTMO terminal isolation status"},
-    {"command": "fx_positions",           "description": "FTMO open trades with live price + uPnL"},
-    {"command": "fx_journal",             "description": "Last 5 FTMO closed trades"},
-    {"command": "fx_lots",                "description": "FTMO lot sizes + risk per symbol"},
-    {"command": "fx_exit",                "description": "Close FTMO trade manually — /fx_exit A"},
-    {"command": "fx_stop",                "description": "Pause FTMO engine"},
-    {"command": "fx_resume",              "description": "Resume FTMO engine"},
-    {"command": "ml_status",              "description": "ML shadow accuracy + model status"},
-    {"command": "ml_train",               "description": "Force ML retrain"},
-    {"command": "forex_execution_mode",   "description": "FTMO execution gate config"},
-    {"command": "forex_execution_stats",  "description": "FTMO execution validation stats"},
-    {"command": "fx_help",                "description": "FTMO strategy rules + all commands"},
+# ── GFT $10K Bot (@cb6forexbot) — TELEGRAM_BOT_TOKEN_FTMO ─────────────────────
+GFT10K_COMMANDS = [
+    {"command": "start",              "description": "GFT $10K overview + command list"},
+    {"command": "g10k_status",        "description": "Engine health + capital + heartbeat"},
+    {"command": "g10k_pnl",          "description": "P&L + DD progress bars"},
+    {"command": "g10k_positions",    "description": "Open trades with live price + uPnL"},
+    {"command": "g10k_journal",      "description": "Last 5 closed trades"},
+    {"command": "g10k_terminals",    "description": "MT5 terminal isolation status"},
+    {"command": "g10k_stop",         "description": "Pause GFT $10K engine"},
+    {"command": "g10k_resume",       "description": "Resume GFT $10K engine"},
+    {"command": "ml_status",         "description": "ML shadow accuracy + model status"},
+    {"command": "ml_train",          "description": "Force ML retrain"},
 ]
 
 # ── GFT Bot (GFT $5K 2-Step only) ─────────────────────────────────────────────
@@ -110,7 +104,7 @@ GFT_COMMANDS = [
 
 
 print("Registering Telegram bot menus...\n")
-set_commands(os.getenv("TELEGRAM_BOT_TOKEN",      ""), NSE_COMMANDS,  "NSE Bot   (Indian markets)")
-set_commands(os.getenv("TELEGRAM_BOT_TOKEN_FTMO", ""), FTMO_COMMANDS, "FTMO Bot  (FTMO $10K only)")
-set_commands(os.getenv("TELEGRAM_BOT_TOKEN_GFT",  ""), GFT_COMMANDS,  "GFT Bot   (GFT $5K 2-Step only)")
+set_commands(os.getenv("TELEGRAM_BOT_TOKEN",      ""), NSE_COMMANDS,    "NSE Bot      (Indian markets)")
+set_commands(os.getenv("TELEGRAM_BOT_TOKEN_FTMO", ""), GFT10K_COMMANDS, "GFT $10K Bot (@cb6forexbot)")
+set_commands(os.getenv("TELEGRAM_BOT_TOKEN_GFT",  ""), GFT_COMMANDS,    "GFT Bot      ($5K + $1K + $10K)")
 print("\nDone. Open Telegram and type / to see the updated menus.")

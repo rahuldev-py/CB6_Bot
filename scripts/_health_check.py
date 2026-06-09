@@ -24,24 +24,7 @@ try:
 except Exception as e:
     print('FAIL:', e)
 
-print()
-print('=== CRYPTO SCANNER TEST ===')
-try:
-    from crypto_engine.binance_adapter import BinanceAdapter
-    from crypto_engine.crypto_worker import scan_crypto_setup
-    ba = BinanceAdapter(paper=False)
-    df = ba.get_klines('ETHUSDT', '15m', 150)
-    if df is not None:
-        print('Data fetch: OK | Rows:', len(df))
-        setup = scan_crypto_setup(df, 'ETHUSDT')
-        if setup:
-            print('Scan: Setup found! Direction:', setup['direction'], '| Score:', setup['confluence'])
-        else:
-            print('Scan: OK | No setup right now (normal)')
-    else:
-        print('Data fetch: FAIL')
-except Exception as e:
-    print('FAIL:', e)
+# Crypto engine shelved — section removed
 
 print()
 print('=== FOREX SCANNER TEST ===')

@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python c:\\cb6_bot\\.claude\\hooks\\check_paper_mode.py"
+            "command": "python c:/cb6_bot/.claude/hooks/check_paper_mode.py"
           }
         ]
       }

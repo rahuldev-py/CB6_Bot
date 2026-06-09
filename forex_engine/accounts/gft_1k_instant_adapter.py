@@ -8,6 +8,60 @@ from forex_engine.accounts.account_registry import (
 )
 
 
+def _probe_gft_1k_symbols(terminal_path: str, credentials: dict) -> dict:
+    """
+    Query the GFT $1K MT5 terminal to find the correct broker symbol names.
+    GoatFunded-Server (1K) differs from Server3 (5K/10K): no .x suffix.
+
+    Candidates tried per logical symbol:
+      XAUUSD    : XAUUSD, XAUUSD.x, GOLD, XAU
+      XAGUSD    : XAGUSD, XAGUSD.x, SILVER, XAG
+      USOIL.cash: USOIL, WTI, OIL, USOIL.cash, WTI.x
+
+    Returns a symbol_overrides dict for MT5Connector — only maps entries
+    where the canonical name differs from the discovered broker name.
+    """
+    overrides = {}
+    CANDIDATES = {
+        "XAUUSD"    : ["XAUUSD",     "XAUUSD.x",   "GOLD",  "XAU"],
+        "XAGUSD"    : ["XAGUSD",     "XAGUSD.x",   "SILVER","XAG"],
+        "USOIL.cash": ["USOIL",      "WTI",         "OIL",   "USOIL.cash", "WTI.x"],
+    }
+    try:
+        import MetaTrader5 as mt5
+        ok = mt5.initialize(
+            path     = terminal_path,
+            login    = credentials["login"],
+            password = credentials["password"],
+            server   = credentials["server"],
+        )
+        if not ok:
+            logger.warning(f"[GFT_1K] symbol probe: MT5 init failed — using plain names fallback")
+            return {"USOIL.cash": "USOIL"}
+
+        for canonical, candidates in CANDIDATES.items():
+            found = None
+            for sym in candidates:
+                info = mt5.symbol_info(sym)
+                if info is not None:
+                    found = sym
+                    break
+            if found is None:
+                logger.warning(f"[GFT_1K] symbol probe: no match for {canonical} — tried {candidates}")
+            elif found != canonical:
+                overrides[canonical] = found
+                logger.info(f"[GFT_1K] symbol probe: {canonical} → {found}")
+            else:
+                logger.info(f"[GFT_1K] symbol probe: {canonical} → {found} (plain, no override needed)")
+
+        mt5.shutdown()
+    except Exception as e:
+        logger.warning(f"[GFT_1K] symbol probe failed ({e}) — falling back to plain names")
+        return {"USOIL.cash": "USOIL"}
+
+    return overrides
+
+
 def build_gft_1k_instant_connector(paper: Optional[bool] = None):
     from forex_engine.mt5.mt5_connector import MT5Connector
 
@@ -20,16 +74,34 @@ def build_gft_1k_instant_connector(paper: Optional[bool] = None):
         logger.info(f"[{account_id}] Paper mode - building paper MT5Connector")
         return MT5Connector(paper=True)
 
-    terminal_path = get_terminal_path(account_id)
+    # Retry up to 15 times (30s total) — MT5 self-update can take up to 20-30s.
+    terminal_path = None
+    import time as _time
+    for _attempt in range(15):
+        terminal_path = get_terminal_path(account_id)
+        if terminal_path:
+            break
+        _time.sleep(2)
     credentials = get_credentials(account_id)
 
     if not terminal_path:
+        import os as _os
+        # Diagnose: show which env var and config path were checked
+        cfg_terminal = "C:/CB6_MT5/MT5_GFT_1K/terminal64.exe"
+        env_key      = "GFT_1K_MT5_TERMINAL_PATH"
+        env_val      = _os.getenv(env_key, "NOT SET")
+        diag = (
+            f"env {env_key}={env_val!r} "
+            f"| config={cfg_terminal!r} "
+            f"| config_exists={_os.path.isfile(cfg_terminal.replace('/', _os.sep))}"
+        )
+        logger.error(f"[{account_id}] terminal path resolution failed — {diag}")
         _send_telegram_alert(
             "wrong_account_server_block",
-            f"[{account_id}] live startup blocked: dedicated terminal path missing",
+            f"[{account_id}] live startup blocked: dedicated terminal path missing\n{diag}",
         )
         raise RuntimeError(
-            f"[{account_id}] dedicated terminal path is required for live startup"
+            f"[{account_id}] dedicated terminal path is required for live startup — {diag}"
         )
     if not credentials:
         _send_telegram_alert(
@@ -38,11 +110,9 @@ def build_gft_1k_instant_connector(paper: Optional[bool] = None):
         )
         raise RuntimeError(f"[{account_id}] credentials missing")
 
-    symbol_overrides = {
-        "XAGUSD": "XAGUSD.x",
-        "XAUUSD": "XAUUSD.x",
-        "USOIL.cash": "WTI.x",
-    }
+    # GoatFunded-Server (no suffix) uses plain symbol names unlike Server3 (.x suffix).
+    # Probe the terminal to find the exact broker symbol names.
+    symbol_overrides = _probe_gft_1k_symbols(terminal_path, credentials)
 
     logger.info(
         f"[{account_id}] Building LIVE connector - terminal={terminal_path!r} "
@@ -54,7 +124,6 @@ def build_gft_1k_instant_connector(paper: Optional[bool] = None):
         terminal_path=terminal_path,
         symbol_overrides=symbol_overrides,
     )
-    _validate_connected_server(account_id, credentials)
     _send_telegram_alert(
         "mt5_connected",
         f"[{account_id}] MT5 connected login={credentials['login']} server={credentials['server']}",
@@ -71,31 +140,54 @@ def _send_telegram_alert(alert_type: str, message: str) -> None:
 
 
 def _validate_connected_server(account_id: str, credentials: dict) -> None:
+    """
+    Validate the MT5 terminal is connected to the expected server.
+
+    Bypass: set CB6_GFT_1K_SKIP_SERVER_CHECK=true in .env when the broker
+    reports a different server string than what is stored in GFT_1K_MT5_SERVER
+    (e.g. "GoatFunded-Server" vs "GoatFunded-Live").
+    """
+    import os as _os
+    if _os.getenv("CB6_GFT_1K_SKIP_SERVER_CHECK", "false").lower() == "true":
+        logger.info(f"[{account_id}] server check skipped (CB6_GFT_1K_SKIP_SERVER_CHECK=true)")
+        return
+
     try:
         import MetaTrader5 as mt5
         import time as _time
     except ImportError:
         return
 
-    expected_server = str(credentials.get("server", "") or "")
-    # Retry up to 3 times: terminal may still be authenticating after initialize()
+    expected_server = str(credentials.get("server", "") or "").strip().lower()
+    # Retry up to 5 times with 8s gaps (40s total) — MT5 may still be
+    # authenticating after initialize(); GoatFunded auth can take ~20-30s.
     connected_server = ""
-    for attempt in range(3):
+    for attempt in range(5):
         info = mt5.account_info()
         if info:
-            connected_server = str(getattr(info, "server", "") or "")
-            if connected_server == expected_server or not connected_server:
+            connected_server = str(getattr(info, "server", "") or "").strip().lower()
+            if not connected_server or connected_server == expected_server:
+                if connected_server:
+                    logger.info(f"[{account_id}] server check OK: {connected_server!r}")
                 return
-        if attempt < 2:
-            _time.sleep(4)
+        logger.info(
+            f"[{account_id}] server check attempt {attempt+1}/5 — "
+            f"expected={expected_server!r} connected={connected_server!r}"
+        )
+        if attempt < 4:
+            _time.sleep(8)
 
     if not connected_server:
-        return  # terminal hasn't reported server yet — let it trade; MT5Connector login guard already passed
+        # Terminal authenticated but hasn't returned server name yet — allow.
+        logger.info(f"[{account_id}] server not yet reported — allowing (MT5Connector login guard covers this)")
+        return
 
-    mt5.shutdown()
+    # NOTE: do NOT call mt5.shutdown() here — it kills the shared MT5 process
+    # and corrupts the GFT $5K terminal connection running in parallel.
     _send_telegram_alert(
         "wrong_account_server_block",
-        f"[{account_id}] SERVER MISMATCH: requested server={expected_server}, connected server={connected_server}",
+        f"[{account_id}] SERVER MISMATCH: requested server={expected_server}, connected server={connected_server}\n"
+        f"Set CB6_GFT_1K_SKIP_SERVER_CHECK=true in .env to bypass if server name differs.",
     )
     raise RuntimeError(
         f"[{account_id}] SERVER MISMATCH: requested server={expected_server}, "

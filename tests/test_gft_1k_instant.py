@@ -141,7 +141,11 @@ def test_1k_adapter_requires_dedicated_terminal_for_live(monkeypatch):
         build_gft_1k_instant_connector(paper=False)
 
 
-def test_1k_adapter_rejects_wrong_server(monkeypatch):
+def test_1k_adapter_succeeds_with_valid_path_and_creds(monkeypatch):
+    # Server-name check was removed from the adapter — it caused false-positive
+    # blocks when the MT5 terminal returned a transient server string on startup.
+    # Account safety is enforced by MT5Connector._connect() login mismatch guard
+    # (info.login != requested_login → refuses to trade).
     import forex_engine.mt5.mt5_connector as mt5_connector
     from forex_engine.accounts.gft_1k_instant_adapter import build_gft_1k_instant_connector
 
@@ -149,12 +153,6 @@ def test_1k_adapter_rejects_wrong_server(monkeypatch):
         def __init__(self, **kwargs):
             self.kwargs = kwargs
 
-    fake_mt5 = types.SimpleNamespace(
-        account_info=lambda: types.SimpleNamespace(server="Wrong-Server"),
-        shutdown=lambda: None,
-    )
-
-    monkeypatch.setitem(sys.modules, "MetaTrader5", fake_mt5)
     monkeypatch.setattr(mt5_connector, "MT5Connector", FakeConnector)
     monkeypatch.setattr(
         "forex_engine.accounts.gft_1k_instant_adapter.get_terminal_path",
@@ -163,14 +161,15 @@ def test_1k_adapter_rejects_wrong_server(monkeypatch):
     monkeypatch.setattr(
         "forex_engine.accounts.gft_1k_instant_adapter.get_credentials",
         lambda account_id: {
-            "login": 1,
+            "login": 314983765,
             "password": "x",
             "server": "GoatFunded-Server",
         },
     )
 
-    with pytest.raises(RuntimeError, match="SERVER MISMATCH"):
-        build_gft_1k_instant_connector(paper=False)
+    connector = build_gft_1k_instant_connector(paper=False)
+    assert connector is not None
+    assert connector.kwargs["credentials"]["login"] == 314983765
 
 
 def test_1k_modules_do_not_import_ftmo_or_gft_5k_state():

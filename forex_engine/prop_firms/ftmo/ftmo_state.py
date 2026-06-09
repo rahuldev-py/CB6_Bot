@@ -21,7 +21,7 @@ _STATE_LOCK = threading.Lock()
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 # ── Isolated state file (Phase 4) ──────────────────────────────────────────────
-STATE_FILE = os.path.join(_ROOT, 'data', 'ftmo_10k', 'state.json')
+STATE_FILE = os.path.join(_ROOT, 'data', 'ftmo_25k', 'state.json')
 _LEGACY_STATE_FILE = os.path.join(_ROOT, 'data', 'forex_paper_state.json')
 
 # One-time migration: copy legacy file to isolated directory if not yet done
@@ -39,9 +39,9 @@ def _migrate_once():
 _migrate_once()
 
 _DEFAULT_STATE = {
-    'capital'              : 10000.0,
-    'available_capital'    : 10000.0,
-    'starting_capital'     : 10000.0,
+    'capital'              : 25000.0,
+    'available_capital'    : 25000.0,
+    'starting_capital'     : 25000.0,
     'open_trades'          : [],
     'closed_trades'        : [],
     'daily_trades'         : 0,
@@ -50,11 +50,11 @@ _DEFAULT_STATE = {
     'best_day_pnl'         : 0.0,
     'daily_closed_pnl'     : 0.0,
     'last_reset_date'      : '',
-    'gft_daily_snapshot'   : 10000.0,
+    'gft_daily_snapshot'   : 25000.0,
     'paused'               : False,
     'total_pnl'            : 0.0,
-    'peak_capital'         : 10000.0,
-    'eod_equity_peak'      : 10000.0,
+    'peak_capital'         : 25000.0,
+    'eod_equity_peak'      : 25000.0,
     'broker'               : 'ftmo',
     'mode'                 : 'free_trial',
     'risk_mode'            : 'normal',
@@ -289,7 +289,7 @@ def open_trade(setup: dict, lots: float, ticket: int = 0) -> Optional[dict]:
         t2_dist = abs(sig['target2'] - sig['entry'])
         exp_rrr = round(t2_dist / sl_dist, 2) if sl_dist > 0 else 0.0
         trade = {
-            'id'              : str(uuid.uuid4())[:8],
+            'id'              : str(uuid.uuid4()),
             'ticket'          : ticket,
             'symbol'          : setup['symbol'],
             'direction'       : setup['direction'],
@@ -608,6 +608,29 @@ def _update_trades_locked(current_price: float, symbol: str) -> list:
 
     if events:
         _save(state)
+        notified_closed = set()
+        for event in events:
+            closed_trade = event.get('trade', {})
+            if closed_trade.get('status') != 'CLOSED':
+                continue
+            closed_key = closed_trade.get('id') or id(closed_trade)
+            if closed_key in notified_closed:
+                continue
+            notified_closed.add(closed_key)
+            try:
+                from utils.hermes_close_adapter import (
+                    is_trade_durably_closed,
+                    notify_hermes_trade_closed,
+                )
+                if is_trade_durably_closed(load_state, closed_trade):
+                    notify_hermes_trade_closed(
+                        closed_trade,
+                        source='ftmo_state_auto_close',
+                        account='ftmo',
+                        market='forex',
+                    )
+            except Exception as _hermes_e:
+                logger.debug(f"Hermes FTMO close observer skipped: {_hermes_e}")
     return events
 
 
@@ -667,6 +690,20 @@ def manual_exit_trade(trade_id: str, exit_price: float) -> Optional[dict]:
                 state['best_day_pnl'] = state['daily_pnl']
             state['peak_capital'] = max(state['peak_capital'], state['capital'])
             _save(state)
+            try:
+                from utils.hermes_close_adapter import (
+                    is_trade_durably_closed,
+                    notify_hermes_trade_closed,
+                )
+                if is_trade_durably_closed(load_state, trade):
+                    notify_hermes_trade_closed(
+                        trade,
+                        source='ftmo_state_manual_close',
+                        account='ftmo',
+                        market='forex',
+                    )
+            except Exception as _hermes_e:
+                logger.debug(f"Hermes FTMO manual close observer skipped: {_hermes_e}")
             return {'type': 'MANUAL', 'trade': trade, 'price': exit_price, 'pnl': pnl}
         return None
 

@@ -103,20 +103,6 @@ INSTRUMENTS = {
         'yf_ticker'    : 'EURUSD=X',
         'mt5_symbol'   : 'EURUSD',
     },
-    'GBPUSD': {
-        'label'        : 'GBP / USD',
-        'contract_size': 100000,
-        'pip_size'     : 0.0001,
-        'point_size'   : 0.00001,
-        'min_lot'      : 0.01,
-        'max_lot'      : 100.0,
-        'lot_step'     : 0.01,
-        'min_sl_dist'  : 0.0015,     # 15 pips (GBP more volatile)
-        'fvg_buf'      : 0.0004,
-        'sessions'     : ['london', 'ny'],
-        'yf_ticker'    : 'GBPUSD=X',
-        'mt5_symbol'   : 'GBPUSD',
-    },
     'AUDUSD': {
         'label'        : 'AUD / USD',
         'contract_size': 100000,

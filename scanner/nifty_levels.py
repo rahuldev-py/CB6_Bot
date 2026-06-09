@@ -18,6 +18,8 @@ import pytz
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from utils.logger import logger
+from utils.nse_regime import get_regime, format_regime_summary
+from utils.nse_structural_levels import format_structural_levels
 
 IST = pytz.timezone('Asia/Kolkata')
 
@@ -131,7 +133,7 @@ def analyse_nifty(fyers) -> Dict:
     cur_min = now_ist.hour * 60 + now_ist.minute
     if 10*60 <= cur_min < 11*60:
         active_window = 'morning'
-    elif 13*60+30 <= cur_min < 14*60+30:
+    elif 13*60 <= cur_min < 14*60:
         active_window = 'afternoon'
     else:
         active_window = None
@@ -155,6 +157,16 @@ def analyse_nifty(fyers) -> Dict:
         fii_bias = 'NEUTRAL'; fii_net = 0; dii_net = 0; fii_stale = True
 
     oi_data = None
+
+    # ── Market regime (20-year historical context) ────────────────────────────
+    try:
+        regime_info    = get_regime()
+        regime_summary = format_regime_summary()
+    except Exception:
+        regime_info    = {"regime": "UNKNOWN", "bias_score": 0, "vol": "NORMAL_VOL",
+                          "year_high": None, "year_low": None,
+                          "sma200": None, "atr14": None, "ret_1y_pct": None}
+        regime_summary = "Regime: UNKNOWN (historical data not loaded)"
 
     # ── Probability model ─────────────────────────────────────────────────────
     buy_score = 0.0
@@ -272,7 +284,32 @@ def analyse_nifty(fyers) -> Dict:
     else:
         factors.append("OI levels: not available (bhavcopy not downloaded yet)")
 
-    # 7. Backtest WR edge (20 pts)
+    # 7. Market regime (20 pts) — 20-year NIFTY daily context
+    regime_bias = regime_info.get("bias_score", 0)   # +1 bull, -1 bear, 0 neutral
+    if regime_bias > 0:
+        buy_score  += 20
+        yr_h = regime_info.get("year_high")
+        factors.append(
+            f"20yr Regime: {regime_info['regime']} — LONG bias "
+            f"{'+' if (regime_info.get('ret_1y_pct') or 0) >= 0 else ''}"
+            f"{regime_info.get('ret_1y_pct', '?')}% 1Y  +20 BUY"
+            + (f" | Year high {yr_h}" if yr_h else "")
+        )
+    elif regime_bias < 0:
+        sell_score += 20
+        yr_l = regime_info.get("year_low")
+        factors.append(
+            f"20yr Regime: {regime_info['regime']} — SHORT bias "
+            f"{'+' if (regime_info.get('ret_1y_pct') or 0) >= 0 else ''}"
+            f"{regime_info.get('ret_1y_pct', '?')}% 1Y  +20 SELL"
+            + (f" | Year low {yr_l}" if yr_l else "")
+        )
+    else:
+        factors.append(
+            f"20yr Regime: {regime_info.get('regime', 'UNKNOWN')} — neutral (no directional edge)"
+        )
+
+    # 8. Backtest WR edge (20 pts)
     bull_edge = bull_wr - 50
     bear_edge = bear_wr - 50
     if bull_edge > bear_edge and bull_n >= 3:
@@ -337,12 +374,14 @@ def analyse_nifty(fyers) -> Dict:
         'fii_bias'     : fii_bias,
         'fii_stale'    : fii_stale,
         'oi_data'      : oi_data,
-        'factors'      : factors,
-        'buy_pct'      : buy_pct,
-        'sell_pct'     : sell_pct,
-        'verdict'      : verdict,
-        'action'       : action,
-        'opt_type'     : opt_type,
+        'factors'        : factors,
+        'buy_pct'        : buy_pct,
+        'sell_pct'       : sell_pct,
+        'verdict'        : verdict,
+        'action'         : action,
+        'opt_type'       : opt_type,
+        'regime_info'    : regime_info,
+        'regime_summary' : regime_summary,
     }
 
 
@@ -439,6 +478,37 @@ def format_report(r: Dict) -> str:
         f"FII : Rs {r['fii_net']:+.0f}Cr  DII : Rs {r['dii_net']:+.0f}Cr{stale}",
         f"Bias: {r['fii_bias']}",
     ]
+
+    ri = r.get('regime_info', {})
+    if ri.get('regime', 'UNKNOWN') != 'UNKNOWN':
+        year_h = ri.get('year_high'); year_l = ri.get('year_low')
+        sma200 = ri.get('sma200');    atr14  = ri.get('atr14')
+        ret1y  = ri.get('ret_1y_pct')
+        vol_tag = f"  [{ri.get('vol', '')}]" if ri.get('vol') != 'NORMAL_VOL' else ''
+        lines += [
+            f"",
+            f"--- 20yr MARKET REGIME ---",
+            f"Regime  : {ri.get('regime', '?')}{vol_tag}",
+        ]
+        if ret1y is not None:
+            lines.append(f"1Y Ret  : {ret1y:+.1f}%  YTD: {ri.get('ytd_ret_pct', 0):+.1f}%")
+        if sma200:
+            lines.append(f"SMA200  : {sma200}  |  SMA50: {ri.get('sma50', '?')}")
+        if atr14:
+            lines.append(f"ATR14   : {atr14}  (vol pct {ri.get('atr_pct_rank', 50):.0f}/100)")
+        if year_h and year_l:
+            lines.append(f"52W H/L : {year_h} / {year_l}")
+        ath5y = ri.get('ath_5y'); atl5y = ri.get('atl_5y')
+        if ath5y and atl5y:
+            lines.append(f"5Y H/L  : {ath5y} / {atl5y}")
+
+    # 20yr structural levels — nearest DOL targets above/below
+    try:
+        struct_block = format_structural_levels(ltp, n=5)
+        if "not available" not in struct_block:
+            lines += ["", struct_block]
+    except Exception:
+        pass
 
 
     lines += [

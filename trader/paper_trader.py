@@ -767,6 +767,25 @@ def close_paper_trade(trade, exit_price, reason, state):
         from journal.trade_journal import log_trade
         log_trade(trade)
 
+        # Write exit to CSV trade journal (utils/trade_journal.py)
+        try:
+            from utils.trade_journal import log_exit as _csv_exit
+            entry_t   = trade.get('entry_time', '')
+            entry_iso = entry_t.replace(' ', 'T') if entry_t else ''
+            if entry_iso:
+                _dt_in  = datetime.strptime(entry_t[:19], '%Y-%m-%d %H:%M:%S')
+                _dt_out = datetime.now()
+                _mins   = round((_dt_out - _dt_in).total_seconds() / 60, 1)
+                _csv_exit(
+                    journal_id  = entry_iso,
+                    exit_price  = trade.get('exit_price', exit_price),
+                    exit_reason = reason,
+                    realized_pnl= trade.get('pnl', 0),
+                    mins_in_fvg = _mins,
+                )
+        except Exception as _je:
+            logger.debug(f"CSV journal exit skipped: {_je}")
+
         try:
             import threading as _t
             from data.trade_lessons import record_trade_lesson
@@ -817,6 +836,20 @@ def close_paper_trade(trade, exit_price, reason, state):
             pass
 
         save_state(state)
+        try:
+            from utils.hermes_close_adapter import (
+                is_trade_durably_closed,
+                notify_hermes_trade_closed,
+            )
+            if is_trade_durably_closed(load_state, trade):
+                notify_hermes_trade_closed(
+                    trade,
+                    source='nse_paper_close',
+                    account='nse_paper_trader',
+                    market='nse',
+                )
+        except Exception as _hermes_e:
+            logger.debug(f"Hermes paper close observer skipped: {_hermes_e}")
 
         clean      = trade['symbol'].replace("NSE:", "").replace("-EQ", "")
         result     = "WIN" if trade['pnl'] >= 0 else "LOSS"
@@ -915,6 +948,20 @@ def close_paper_trade_by_id(trade_id, exit_price, reason='SL_HIT_WS'):
         if leg_pnl < 0:
             state['daily_losses'] = state.get('daily_losses', 0) + 1
         save_state(state)
+        try:
+            from utils.hermes_close_adapter import (
+                is_trade_durably_closed,
+                notify_hermes_trade_closed,
+            )
+            if is_trade_durably_closed(load_state, match):
+                notify_hermes_trade_closed(
+                    match,
+                    source='nse_paper_close_by_id',
+                    account='nse_paper_trader',
+                    market='nse',
+                )
+        except Exception as _hermes_e:
+            logger.debug(f"Hermes paper close-by-id observer skipped: {_hermes_e}")
 
         from journal.trade_journal import log_trade
         log_trade(match)

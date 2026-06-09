@@ -15,6 +15,10 @@ import os
 import shutil
 from typing import Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from utils.logger import logger
 
 # ── Paths ───────────────────────────────────────────────────────────────────────
@@ -190,6 +194,11 @@ def is_paper(account_id: str) -> bool:
     if account_id == 'GFT_1K_INSTANT':
         enabled = os.getenv('CB6_GFT_1K_INSTANT_ENABLED', 'false').lower() == 'true'
         live = os.getenv('CB6_GFT_1K_INSTANT_LIVE_EXECUTION', 'false').lower() == 'true'
+        return not (enabled and live)
+
+    if account_id == 'GFT_10K':
+        enabled = os.getenv('CB6_GFT_10K_ENABLED', 'false').lower() == 'true'
+        live = os.getenv('CB6_GFT_10K_LIVE_EXECUTION', 'false').lower() == 'true'
         return not (enabled and live)
 
     cfg = get_account(account_id)

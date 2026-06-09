@@ -10,7 +10,7 @@ Goals verified:
   - Queue remains bounded (tick worker drains queue, no unbounded growth)
   - Reconnect failure handling (state reverts to DISCONNECTED on exception)
 
-No TrueData credentials required: the `truedata` SDK is fully mocked.
+No TrueData credentials required: the `truedata_ws` SDK is fully mocked.
 """
 
 import importlib
@@ -24,94 +24,83 @@ from unittest.mock import MagicMock, patch, call
 
 
 # ---------------------------------------------------------------------------
-# SDK mock factory — replaces `import truedata` inside truedata_feed.py
+# Unified SDK mock factory — replaces `from truedata_ws.websocket.TD import TD`
+# inside truedata_feed.py.  A single TD class routes to hist or live behaviour
+# based on the `live_port` kwarg (None → hist, int → live).
 # ---------------------------------------------------------------------------
 
-def _make_td_hist_class(instance_registry: list, raise_on_n: int = 0):
+def _make_td_class(hist_registry: list, live_registry: list = None,
+                   hist_raise_on_n: int = 0, fail_start_live: bool = False):
     """
-    Returns a mock TD_hist class.
-    - Records every instance created in instance_registry.
-    - Raises RuntimeError on the Nth instantiation if raise_on_n > 0.
+    Returns a unified MockTD class.
+    - live_port=None  → historical mode; appended to hist_registry.
+    - live_port=<int> → live mode;       appended to live_registry.
+    - hist_raise_on_n: raise RuntimeError on the N-th hist instantiation.
+    - fail_start_live: raise RuntimeError inside start_live_data().
     """
-    count = [0]
+    if live_registry is None:
+        live_registry = []
+    hist_count = [0]
 
-    class MockTDHist:
-        def __init__(self, user, password, log_level=0):
-            count[0] += 1
-            if raise_on_n and count[0] >= raise_on_n:
-                raise RuntimeError("Simulated TD_hist connection failure")
-            self._id = count[0]
-            instance_registry.append(self)
+    class MockTD:
+        def __init__(self, user, password, live_port=None,
+                     historical_api=True, log_level=0, **kwargs):
+            self._live_port   = live_port
             self._disconnected = False
+            self.live_websocket = None
+            self.live_data      = {}
+            if live_port is None:
+                hist_count[0] += 1
+                if hist_raise_on_n and hist_count[0] >= hist_raise_on_n:
+                    raise RuntimeError("Simulated TD hist connection failure")
+                self._id = hist_count[0]
+                hist_registry.append(self)
+            else:
+                live_registry.append(self)
 
-        def get_historic_data(self, symbol, duration, bar_size):
-            import pandas as pd
-            return pd.DataFrame({
-                "time":   ["2026-05-30 09:15:00", "2026-05-30 09:30:00"],
-                "open":   [24000.0, 24010.0],
-                "high":   [24050.0, 24060.0],
-                "low":    [23980.0, 23990.0],
-                "close":  [24020.0, 24040.0],
-                "volume": [100000, 110000],
-            })
+        def get_historic_data(self, symbol, bar_size=None,
+                              start_time=None, end_time=None, **kw):
+            return [
+                {"time": "2026-05-30 09:15:00", "open": 24000.0,
+                 "high": 24050.0, "low": 23980.0, "close": 24020.0, "volume": 100000},
+                {"time": "2026-05-30 09:30:00", "open": 24010.0,
+                 "high": 24060.0, "low": 23990.0, "close": 24040.0, "volume": 110000},
+            ]
 
         def get_n_historical_bars(self, symbol, no_of_bars=200, bar_size="15 mins"):
-            return self.get_historic_data(symbol, f"{no_of_bars} bars", bar_size)
-
-        def disconnect(self):
-            self._disconnected = True
-
-    return MockTDHist
-
-
-def _make_td_live_class(instance_registry: list, fail_start_live: bool = False):
-    """
-    Returns a mock TD_live class.
-    - Records every instance created.
-    - Optionally raises in start_live_data (simulates C4 scenario).
-    """
-    class MockTDLive:
-        def __init__(self, user, password, log_level=0):
-            instance_registry.append(self)
-            self._trade_cb = None
-            self._bar_cb = None
-            self.live_data = {}
-            self._disconnected = False
-
-        def trade_callback(self, fn):
-            self._trade_cb = fn
-            return fn
-
-        def one_min_bar_callback(self, fn):
-            self._bar_cb = fn
-            return fn
+            return self.get_historic_data(symbol)
 
         def start_live_data(self, symbols):
             if fail_start_live:
                 raise RuntimeError("Simulated start_live_data failure")
+            return list(range(len(symbols)))
 
         def disconnect(self):
             self._disconnected = True
 
-    return MockTDLive
+    return MockTD
 
 
-def _build_fake_truedata_module(hist_class, live_class):
-    mod = types.ModuleType("truedata")
-    mod.TD_hist = hist_class
-    mod.TD_live = live_class
-    return mod
+def _build_fake_td_ws_module(td_class):
+    """Build a fake truedata_ws.websocket.TD module with MockTD as TD."""
+    td_mod = types.ModuleType("truedata_ws.websocket.TD")
+    td_mod.TD = td_class
+    return td_mod
 
 
-def _fresh_manager(fake_module):
+def _fresh_manager(fake_td_module):
     """
-    Import (or re-import) data.truedata_feed with the given fake truedata module,
-    and return a brand-new TrueDataManager instance (singleton reset each call).
+    Import (or re-import) data.truedata_feed with the given fake truedata_ws
+    module, and return a brand-new TrueDataManager instance (singleton reset).
     """
-    # Inject the fake SDK before any import
-    sys.modules["truedata"] = fake_module
+    # Inject the fake SDK into the full module hierarchy so that
+    #   `from truedata_ws.websocket.TD import TD`
+    # inside truedata_feed.py resolves to our mock.
+    sys.modules["truedata_ws"]            = types.ModuleType("truedata_ws")
+    sys.modules["truedata_ws.websocket"]  = types.ModuleType("truedata_ws.websocket")
+    sys.modules["truedata_ws.websocket.TD"] = fake_td_module
 
-    # Force re-import of truedata_feed so singleton is reset
+    # Force re-import of truedata_feed so module-level globals + singleton reset
     for key in list(sys.modules.keys()):
         if "truedata_feed" in key or key == "data.truedata_feed":
             del sys.modules[key]
@@ -167,12 +156,10 @@ class TestStateMachineCorrectness(unittest.TestCase):
     """State transitions are correct under normal conditions."""
 
     def setUp(self):
-        hist_instances = []
-        hist_cls  = _make_td_hist_class(hist_instances)
-        live_cls  = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.hist_instances = hist_instances
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        self.hist_instances = []
+        td_cls = _make_td_class(self.hist_instances)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
 
     def test_initial_state_is_disconnected(self):
         from data.truedata_feed import _ConnState
@@ -195,7 +182,7 @@ class TestStateMachineCorrectness(unittest.TestCase):
         self.feed._TRUEDATA_PASS = "pass"
         self.mgr.connect_hist()
         self.mgr.connect_hist()
-        # Only one TD_hist instance should exist
+        # Only one TD instance should exist
         self.assertEqual(len(self.hist_instances), 1)
 
     def test_disconnect_resets_state(self):
@@ -206,8 +193,8 @@ class TestStateMachineCorrectness(unittest.TestCase):
         self.mgr.disconnect()
         self.assertEqual(self.mgr._hist_state, _ConnState.DISCONNECTED)
         self.assertEqual(self.mgr._live_state, _ConnState.DISCONNECTED)
-        self.assertIsNone(self.mgr._hist)
-        self.assertIsNone(self.mgr._live)
+        self.assertIsNone(self.mgr._td_hist)
+        self.assertIsNone(self.mgr._td_live)
 
     def test_is_hist_ready_false_before_connect(self):
         self.assertFalse(self.mgr.is_hist_ready)
@@ -227,25 +214,24 @@ class TestConcurrentConnect(unittest.TestCase):
 
     def setUp(self):
         self.hist_instances = []
-        hist_cls  = _make_td_hist_class(self.hist_instances)
-        live_cls  = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        td_cls = _make_td_class(self.hist_instances)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
         self.feed._TRUEDATA_USER = "user"
         self.feed._TRUEDATA_PASS = "pass"
 
     def test_no_duplicate_sessions(self):
-        """50 concurrent connect_hist() calls must create exactly 1 TD_hist instance."""
+        """50 concurrent connect_hist() calls must create exactly 1 TD instance."""
         results, errors = _run_concurrent(self.mgr.connect_hist, self.N_THREADS, self.TIMEOUT)
 
         # At least one True (the winner)
         success_count = sum(1 for r in results if r is True)
         self.assertGreaterEqual(success_count, 1, "At least one thread must succeed")
 
-        # Exactly 1 TD_hist instance created (no duplicate sessions)
+        # Exactly 1 TD instance created (no duplicate sessions)
         self.assertEqual(
             len(self.hist_instances), 1,
-            f"Expected 1 TD_hist instance, got {len(self.hist_instances)}"
+            f"Expected 1 TD instance, got {len(self.hist_instances)}"
         )
 
     def test_state_is_connected_after_race(self):
@@ -265,10 +251,9 @@ class TestConcurrentDisconnect(unittest.TestCase):
 
     def setUp(self):
         self.hist_instances = []
-        hist_cls  = _make_td_hist_class(self.hist_instances)
-        live_cls  = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        td_cls = _make_td_class(self.hist_instances)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
         self.feed._TRUEDATA_USER = "user"
         self.feed._TRUEDATA_PASS = "pass"
         self.mgr.connect_hist()
@@ -315,10 +300,9 @@ class TestReconnectOnSessionExpiry(unittest.TestCase):
 
     def setUp(self):
         self.hist_instances = []
-        self.hist_cls = _make_td_hist_class(self.hist_instances)
-        live_cls  = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(self.hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        td_cls = _make_td_class(self.hist_instances)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
         self.feed._TRUEDATA_USER = "user"
         self.feed._TRUEDATA_PASS = "pass"
 
@@ -336,7 +320,7 @@ class TestReconnectOnSessionExpiry(unittest.TestCase):
                 raise RuntimeError("Session expired: unauthorized")
 
         with self.mgr._lock:
-            self.mgr._hist = _ExpiredHist()
+            self.mgr._td_hist = _ExpiredHist()
 
         # Call should fail and reset state
         result = self.mgr.get_historical_bars("NIFTY-I", "15 mins", 5)
@@ -358,7 +342,7 @@ class TestReconnectOnSessionExpiry(unittest.TestCase):
                 raise RuntimeError("401 unauthorized")
 
         with self.mgr._lock:
-            self.mgr._hist = _ExpiredHist()
+            self.mgr._td_hist = _ExpiredHist()
 
         # First call — hits expiry, resets to DISCONNECTED
         self.mgr.get_historical_bars("NIFTY-I", "15 mins", 5)
@@ -366,8 +350,8 @@ class TestReconnectOnSessionExpiry(unittest.TestCase):
 
         # Second call — should trigger reconnect
         result = self.mgr.get_historical_bars("NIFTY-I", "15 mins", 5)
-        # A fresh TD_hist must have been created
-        self.assertEqual(len(self.hist_instances), 2, "Expected a new TD_hist instance on reconnect")
+        # A fresh TD instance must have been created
+        self.assertEqual(len(self.hist_instances), 2, "Expected a new TD instance on reconnect")
 
 
 class TestZombieCleanupOnLiveFail(unittest.TestCase):
@@ -375,10 +359,9 @@ class TestZombieCleanupOnLiveFail(unittest.TestCase):
 
     def setUp(self):
         self.live_instances = []
-        hist_cls = _make_td_hist_class([])
-        live_cls = _make_td_live_class(self.live_instances, fail_start_live=True)
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        td_cls = _make_td_class([], live_registry=self.live_instances, fail_start_live=True)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
         self.feed._TRUEDATA_USER = "user"
         self.feed._TRUEDATA_PASS = "pass"
 
@@ -401,10 +384,10 @@ class TestZombieCleanupOnLiveFail(unittest.TestCase):
         )
 
     def test_no_self_live_set_on_failure(self):
-        """self._live must be None after a failed connect."""
+        """self._td_live must be None after a failed connect."""
         self.mgr.connect_live(["NIFTY-I"])
         with self.mgr._lock:
-            self.assertIsNone(self.mgr._live)
+            self.assertIsNone(self.mgr._td_live)
 
 
 class TestConcurrentHistoricalRequests(unittest.TestCase):
@@ -413,11 +396,10 @@ class TestConcurrentHistoricalRequests(unittest.TestCase):
     N_THREADS = 10
 
     def setUp(self):
-        hist_instances = []
-        hist_cls  = _make_td_hist_class(hist_instances)
-        live_cls  = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        self.hist_instances = []
+        td_cls = _make_td_class(self.hist_instances)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
         self.feed._TRUEDATA_USER = "user"
         self.feed._TRUEDATA_PASS = "pass"
 
@@ -446,10 +428,9 @@ class TestTickQueueBounded(unittest.TestCase):
     """Queue drains correctly — no unbounded growth under tick bursts."""
 
     def setUp(self):
-        hist_cls = _make_td_hist_class([])
-        live_cls = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        td_cls = _make_td_class([])
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
 
     def test_queue_drains_to_zero(self):
         """Enqueue 10,000 ticks; queue must drain to 0 within 5 seconds."""
@@ -497,22 +478,18 @@ class TestSimulatedReconnectFailures(unittest.TestCase):
     """Connect fails N times, then succeeds — state always lands correctly."""
 
     def _build_mgr_with_failing_hist(self, n_failures: int):
-        """Build a manager where the first n_failures connect attempts raise.
-
-        raise_on_n=1 means raise on count[0] >= 1, i.e. the very first call.
-        """
+        """Build a manager where the first n_failures connect attempts raise."""
         instances = []
-        hist_cls  = _make_td_hist_class(instances, raise_on_n=n_failures)
-        live_cls  = _make_td_live_class([])
-        fake = _build_fake_truedata_module(hist_cls, live_cls)
-        mgr, feed = _fresh_manager(fake)
+        td_cls = _make_td_class(instances, hist_raise_on_n=n_failures)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        mgr, feed = _fresh_manager(fake_mod)
         feed._TRUEDATA_USER = "user"
         feed._TRUEDATA_PASS = "pass"
         return mgr, instances, feed
 
     def test_failure_leaves_disconnected(self):
         mgr, _, feed = self._build_mgr_with_failing_hist(n_failures=1)
-        _ConnState = feed._ConnState        # same module instance as mgr
+        _ConnState = feed._ConnState
         ok = mgr.connect_hist()
         self.assertFalse(ok)
         self.assertEqual(mgr._hist_state, _ConnState.DISCONNECTED)
@@ -522,29 +499,35 @@ class TestSimulatedReconnectFailures(unittest.TestCase):
         instances = []
         attempt = [0]
 
-        class _FlakeyHist:
-            def __init__(self, user, password, log_level=0):
+        class _FlakeyTD:
+            def __init__(self, user, password, live_port=None,
+                         historical_api=True, log_level=0, **kwargs):
                 attempt[0] += 1
                 instances.append(self)
+                self._disconnected = False
+                self.live_websocket = None
+                self.live_data = {}
                 if attempt[0] == 1:
                     raise RuntimeError("First attempt fails")
 
             def get_historic_data(self, *a, **kw):
                 import pandas as pd
-                return pd.DataFrame({
-                    "time":   ["2026-05-30 09:15:00"],
-                    "open":   [24000.0], "high": [24050.0],
-                    "low":    [23980.0], "close": [24020.0],
-                    "volume": [100000],
-                })
+                return [
+                    {"time": "2026-05-30 09:15:00", "open": 24000.0, "high": 24050.0,
+                     "low": 23980.0, "close": 24020.0, "volume": 100000},
+                ]
 
-        hist_cls  = _FlakeyHist
-        live_cls  = _make_td_live_class([])
-        fake = _build_fake_truedata_module(hist_cls, live_cls)
-        mgr, feed = _fresh_manager(fake)
+            def get_n_historical_bars(self, *a, **kw):
+                return self.get_historic_data()
+
+            def disconnect(self):
+                self._disconnected = True
+
+        fake_mod = _build_fake_td_ws_module(_FlakeyTD)
+        mgr, feed = _fresh_manager(fake_mod)
         feed._TRUEDATA_USER = "user"
         feed._TRUEDATA_PASS = "pass"
-        _ConnState = feed._ConnState        # import from the live module instance
+        _ConnState = feed._ConnState
 
         ok1 = mgr.connect_hist()
         self.assertFalse(ok1)
@@ -561,10 +544,9 @@ class TestSimulatedReconnectFailures(unittest.TestCase):
         No deadlock, no AttributeError, no leaked sessions per round.
         """
         instances = []
-        hist_cls  = _make_td_hist_class(instances)
-        live_cls  = _make_td_live_class([])
-        fake = _build_fake_truedata_module(hist_cls, live_cls)
-        mgr, feed = _fresh_manager(fake)
+        td_cls = _make_td_class(instances)
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        mgr, feed = _fresh_manager(fake_mod)
         feed._TRUEDATA_USER = "user"
         feed._TRUEDATA_PASS = "pass"
 
@@ -598,11 +580,9 @@ class TestPasswordSanitization(unittest.TestCase):
     """HIGH-1: Passwords must not appear in log output."""
 
     def setUp(self):
-        hist_instances = []
-        hist_cls = _make_td_hist_class(hist_instances, raise_on_n=1)  # always fails
-        live_cls = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        td_cls = _make_td_class([], hist_raise_on_n=1)  # always fails
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
         self.feed._TRUEDATA_USER = "testuser"
         self.feed._TRUEDATA_PASS = "s3cr3tP@ss!"
 
@@ -637,10 +617,9 @@ class TestMissingCredentials(unittest.TestCase):
     """connect_hist/live must fail gracefully with missing credentials."""
 
     def setUp(self):
-        hist_cls = _make_td_hist_class([])
-        live_cls = _make_td_live_class([])
-        self.fake = _build_fake_truedata_module(hist_cls, live_cls)
-        self.mgr, self.feed = _fresh_manager(self.fake)
+        td_cls = _make_td_class([])
+        fake_mod = _build_fake_td_ws_module(td_cls)
+        self.mgr, self.feed = _fresh_manager(fake_mod)
         self.feed._TRUEDATA_USER = ""
         self.feed._TRUEDATA_PASS = ""
 

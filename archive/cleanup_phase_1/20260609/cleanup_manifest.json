@@ -1,0 +1,303 @@
+﻿{
+    "phase":  "CB6 Cleanup Phase 1",
+    "archive_date":  "2026-06-09",
+    "created_at":  "2026-06-09T21:28:31.8362289+05:30",
+    "policy":  "Archive only; no deletion; approved safe generated artifacts only",
+    "top_level_targets_moved":  11,
+    "files_moved":  40,
+    "bytes_moved":  4302797,
+    "items":  [
+                  {
+                      "source":  ".pytest_cache\\.gitignore",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_cache\\.gitignore",
+                      "bytes":  39,
+                      "sha256":  "E7C6BB30148CF667606DCD63E7CA77ACAA3CFB0C8303BF09E6419E1E1669DC6D",
+                      "reason":  "Generated pytest cache"
+                  },
+                  {
+                      "source":  ".pytest_cache\\CACHEDIR.TAG",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_cache\\CACHEDIR.TAG",
+                      "bytes":  191,
+                      "sha256":  "37DC88EF9A0ABEDDBE81053A6DD8FDFB13AFB613045EA1EB4A5C815A74A3BDE4",
+                      "reason":  "Generated pytest cache"
+                  },
+                  {
+                      "source":  ".pytest_cache\\README.md",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_cache\\README.md",
+                      "bytes":  310,
+                      "sha256":  "420E808D79A6C25D3CDA0AF33BC4782314A14949866682C68CE8149E89B66B70",
+                      "reason":  "Generated pytest cache"
+                  },
+                  {
+                      "source":  ".pytest_cache\\v\\cache\\lastfailed",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_cache\\v\\cache\\lastfailed",
+                      "bytes":  2,
+                      "sha256":  "44136FA355B3678A1146AD16F7E8649E94FB4FC21FE77E8310C060F61CAAFF8A",
+                      "reason":  "Generated pytest cache"
+                  },
+                  {
+                      "source":  ".pytest_cache\\v\\cache\\nodeids",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_cache\\v\\cache\\nodeids",
+                      "bytes":  3656,
+                      "sha256":  "16465C9ABEC5C35AE2692150FA7D49C6BDC7F77A759FA0A2D6ECC186C3D9DC50",
+                      "reason":  "Generated pytest cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_active_when_flag_exists0\\EMERGENCY_STOP.flag",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_active_when_flag_exists0\\EMERGENCY_STOP.flag",
+                      "bytes":  4,
+                      "sha256":  "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_atomic_write_survives_con0\\sj.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_atomic_write_survives_con0\\sj.json",
+                      "bytes":  133,
+                      "sha256":  "4CC8B0DF9805C05E25616F36373AED9E47F546F4689E98A3545B51823B1D4C59",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_atomic_write_survives_con0\\sj.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_atomic_write_survives_con0\\sj.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_basic_read_write0\\test_state.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_basic_read_write0\\test_state.json",
+                      "bytes":  43,
+                      "sha256":  "65DDC20823150A0C2E523F853F334B717503D0417D03C9AC6704EFD43E9F452E",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_basic_read_write0\\test_state.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_basic_read_write0\\test_state.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_blocks_emergency_stop0\\EMERGENCY_STOP.flag",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_blocks_emergency_stop0\\EMERGENCY_STOP.flag",
+                      "bytes":  4,
+                      "sha256":  "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_corrupt_file_falls_back_t0\\corrupt.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_corrupt_file_falls_back_t0\\corrupt.json",
+                      "bytes":  37,
+                      "sha256":  "E95A43F8D781FFEF79CC3C0CCF5B3475721538113E7ABF2ACFA0993F85EAF174",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_corrupt_file_falls_back_t0\\corrupt.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_corrupt_file_falls_back_t0\\corrupt.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_migrate_state_copies_lega0\\forex_paper_state.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_migrate_state_copies_lega0\\forex_paper_state.json",
+                      "bytes":  37,
+                      "sha256":  "4ACACFF034CEA500414ACEE960EE4B3F7773CB9EBCB5047F9500DF8FA6CB6BA4",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_migrate_state_copies_lega0\\ftmo_10k\\state.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_migrate_state_copies_lega0\\ftmo_10k\\state.json",
+                      "bytes":  37,
+                      "sha256":  "4ACACFF034CEA500414ACEE960EE4B3F7773CB9EBCB5047F9500DF8FA6CB6BA4",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_migrate_state_noop_when_n0\\legacy.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_migrate_state_noop_when_n0\\legacy.json",
+                      "bytes":  19,
+                      "sha256":  "F012083650744C799F04FD972D9BAECD2DB57A45A8724D4C48DF854AE5C992A1",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_migrate_state_noop_when_n0\\ftmo_10k\\state.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_migrate_state_noop_when_n0\\ftmo_10k\\state.json",
+                      "bytes":  19,
+                      "sha256":  "A87864CACB616952F216561A7E9A142483537C432004B8DDECB2B58A2E5EA18F",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_multithreaded_no_lost_inc0\\mt_state.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_multithreaded_no_lost_inc0\\mt_state.json",
+                      "bytes":  22,
+                      "sha256":  "DC346CE3450DB275840692FBBE7C0896CA1953009C62429F958CE032A334EE71",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_multithreaded_no_lost_inc0\\mt_state.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_multithreaded_no_lost_inc0\\mt_state.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_no_write_on_exception0\\state3.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_no_write_on_exception0\\state3.json",
+                      "bytes":  14,
+                      "sha256":  "2646AFEB687B47ECAA7A17FD5E0C5E913C9A5EBDC7A014092ED3547D9712EBF7",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_no_write_on_exception0\\state3.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_no_write_on_exception0\\state3.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_re_reads_existing0\\state2.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_re_reads_existing0\\state2.json",
+                      "bytes":  15,
+                      "sha256":  "A2F6561265BE2E6352FD1B2606F83F0D868CB87504ED12CCFE3FF00D2C0D2984",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_re_reads_existing0\\state2.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_re_reads_existing0\\state2.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_terminal_path_returns_pat0\\terminal64.exe",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_terminal_path_returns_pat0\\terminal64.exe",
+                      "bytes":  4,
+                      "sha256":  "B5D54C39E66671C9731B9F471E585D8262CD4F54963F0C93082D8DCF334D4C78",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_timeout_raises0\\timeout_state.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_timeout_raises0\\timeout_state.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_xag_blocked_by_risk_filte0\\forex_execution_signals.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_xag_blocked_by_risk_filte0\\forex_execution_signals.json",
+                      "bytes":  960,
+                      "sha256":  "53D6ECB031EF43DBC73146398ED899EE96893C6A55F1420E076C4139A2A69B01",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_xag_blocked_by_risk_filte0\\forex_execution_signals.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_xag_blocked_by_risk_filte0\\forex_execution_signals.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_xag_blocked_by_risk_filte0\\forex_execution_validation_audit.jsonl",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_xag_blocked_by_risk_filte0\\forex_execution_validation_audit.jsonl",
+                      "bytes":  474,
+                      "sha256":  "6AE3F180169D14CD5F2C3CA27C705DFB2EEB9DE18305D0BA56844BEB62FD17A6",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_xau_valid_armed_then_exec0\\forex_execution_signals.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_xau_valid_armed_then_exec0\\forex_execution_signals.json",
+                      "bytes":  963,
+                      "sha256":  "0586C45CACE48BA203BEB6A706988CFEC75C6827FD2DF3E94EC85916D60953C1",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_xau_valid_armed_then_exec0\\forex_execution_signals.json.lock",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_xau_valid_armed_then_exec0\\forex_execution_signals.json.lock",
+                      "bytes":  0,
+                      "sha256":  "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  ".pytest_tmp_audit\\test_xau_valid_armed_then_exec0\\forex_execution_validation_audit.jsonl",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\.pytest_tmp_audit\\test_xau_valid_armed_then_exec0\\forex_execution_validation_audit.jsonl",
+                      "bytes":  839,
+                      "sha256":  "D676B0ACCEACDDDA0559579A3BC9838EC3CD6A417059115813E2FA181C9AE47D",
+                      "reason":  "Generated audit test cache"
+                  },
+                  {
+                      "source":  "bt_output.txt",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\bt_output.txt",
+                      "bytes":  505896,
+                      "sha256":  "A468D30CB5C9C6C930B65240DD7BAD0FE7842A4FA5205D8D8892B6F743AD3421",
+                      "reason":  "Generated backtest output"
+                  },
+                  {
+                      "source":  "bt_365d_output.txt",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\bt_365d_output.txt",
+                      "bytes":  3642884,
+                      "sha256":  "BE22292E0A02F3EFBC75B7E96FA642E16614A5E5DC5F0DC39DE48350482E1048",
+                      "reason":  "Generated backtest output"
+                  },
+                  {
+                      "source":  "bt_5y_output.txt",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\bt_5y_output.txt",
+                      "bytes":  30784,
+                      "sha256":  "3856F2D49B0ABB43D168EFF1DCC01184DE64683BA5F67B2FDB14084CC971F0A1",
+                      "reason":  "Generated backtest output"
+                  },
+                  {
+                      "source":  "ml_train_output.txt",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\ml_train_output.txt",
+                      "bytes":  6242,
+                      "sha256":  "AD47208C8DE834CD01B7D2059BA183BA21E2E3D7C943FCA99871941264FD834F",
+                      "reason":  "Generated ML training output"
+                  },
+                  {
+                      "source":  "reports\\futures\\research\\MGC\\perf_MGC[1h]_20260531_214821.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\reports\\futures\\research\\MGC\\perf_MGC[1h]_20260531_214821.json",
+                      "bytes":  599,
+                      "sha256":  "7F3BA4B61985598C5762FCE8427FA2033382D7149E54DDB2CD836760EEF907B0",
+                      "reason":  "Exact duplicate futures research JSON"
+                  },
+                  {
+                      "source":  "reports\\futures\\research\\MNQ\\perf_MNQ[1h]_20260531_214820.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\reports\\futures\\research\\MNQ\\perf_MNQ[1h]_20260531_214820.json",
+                      "bytes":  545,
+                      "sha256":  "F8F2CA2CE5497D277695EF00A856D3B15F5095D35A17D6D3A81874BDD8ACB93F",
+                      "reason":  "Exact duplicate futures research JSON"
+                  },
+                  {
+                      "source":  "reports\\futures\\research\\MCL\\perf_MCL[1h]_20260531_214836.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\reports\\futures\\research\\MCL\\perf_MCL[1h]_20260531_214836.json",
+                      "bytes":  545,
+                      "sha256":  "9E6B0FE8E28BD9E720FAF48CF779CD488C28CFEF8F85624B63BBBF15D76654A9",
+                      "reason":  "Exact duplicate futures research JSON"
+                  },
+                  {
+                      "source":  "reports\\futures\\research\\MES\\perf_MES[1h]_20260531_214819.json",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\reports\\futures\\research\\MES\\perf_MES[1h]_20260531_214819.json",
+                      "bytes":  604,
+                      "sha256":  "2FBD58C59ADB06DBA865A98800D868086724603D77456D390DAEA7C9A4162E37",
+                      "reason":  "Exact duplicate futures research JSON"
+                  },
+                  {
+                      "source":  "flowchart_exports\\TECHNICAL_01_CB6_Quantum_System_Flowchart.png",
+                      "destination":  "archive\\cleanup_phase_1\\20260609\\flowchart_exports\\TECHNICAL_01_CB6_Quantum_System_Flowchart.png",
+                      "bytes":  106876,
+                      "sha256":  "147A12AA6E9F6138470E8FEDA39F072D9AE7E327E54446124289E88EA4C5B8E6",
+                      "reason":  "Exact duplicate flowchart PNG"
+                  }
+              ],
+    "skipped":  [
+                    "All logs: no retention cutoff date agreed",
+                    "Superseded dated reports: no exact approved report list",
+                    "Fyers logs",
+                    "Model artifacts and scalers",
+                    "Hermes files",
+                    "Python modules",
+                    "Tests",
+                    "Settings and config files",
+                    "State files and backups",
+                    "Broker, MT5, and live execution files"
+                ]
+}

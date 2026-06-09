@@ -15,7 +15,7 @@ import os
 import sys
 import time
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -121,6 +121,9 @@ SYMBOL_MIN_SCORE = {
 }
 
 ACTIVE_SYMBOLS = ['XAUUSD', 'XAGUSD', 'USOIL', 'EURUSD']
+
+# Dedup cache — suppress repeated 3-wave Telegram alerts for same symbol within 45min
+_reversal_alert_cache: dict = {}   # {symbol: last_alert_epoch}
 
 # ── Session windows (UTC) — matched to MT5 15m backtest ────────────────────────
 # London : 07:00–12:00 UTC  (= 02:00–07:00 AM EST / 12:30–17:30 IST)
@@ -578,9 +581,9 @@ def scan_forex_setup(df: pd.DataFrame, symbol: str) -> Optional[dict]:
         score     += 1 if ob_present else 0
 
         # ── Data-driven Forex adjustments (199 journal + 288 MT5 trades) ──────
+        utc_hour = datetime.utcnow().hour
         # 1. CHoCH + London session: WR 80.0% — best combo in Forex data
-        _sess_label = setup.get('session', '') if 'setup' in dir() else ''
-        if mss_type == 'CHOCH' and 'london' in str(utc_hour).lower() or (7 <= utc_hour <= 11):
+        if mss_type == 'CHOCH' and (7 <= utc_hour <= 11):
             if mss_type == 'CHOCH':
                 score += 1
                 logger.debug(f"FOREX {symbol}: CHoCH+London bonus +1 (data WR 80%)")
@@ -812,6 +815,9 @@ class ForexWorker:
         }
         self._revalidate_cycle_secs = max(1, int(FOREX_EXECUTION_REVALIDATE_CYCLE_SECONDS or 60))
         self._running       = False
+        # Pending FTMO limit orders: {mt5_order_ticket: {symbol, setup, sig, lots, risk_usd, expires}}
+        # Limit orders live here until MT5 fills them; only then do they enter ftmo_state.
+        self._pending_ftmo_limits: dict = {}
 
     # ── Candle callback ────────────────────────────────────────────────────────
 
@@ -823,6 +829,119 @@ class ForexWorker:
         logger.info(f"FOREX {symbol} candle closed {t_str} | C={df['close'].iloc[-1]:.5f}")
         threading.Thread(target=self._run_scan, args=(symbol,),
                          daemon=True, name=f"ForexScan_{symbol}").start()
+
+    def _on_intracandle_poll(self, symbol: str, df: pd.DataFrame):
+        """
+        Fires every 15s with df including the CURRENT FORMING BAR from MT5 (pos=0).
+        df[-1] has live OHLC — no tick injection needed; MT5 provides real-time bar data.
+        Updates self._candles so _run_scan always sees the freshest price.
+        Lock in _run_scan prevents concurrent scan if _on_closed_candle just fired.
+        """
+        if symbol not in ACTIVE_SYMBOLS:
+            return
+        self._candles[symbol] = df
+        threading.Thread(target=self._run_scan, args=(symbol,),
+                         daemon=True, name=f"ForexIntra_{symbol}").start()
+
+    # ── Limit order helpers ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _next_candle_expiry(tf_minutes: int = 15) -> datetime:
+        """UTC datetime at end of current candle (next tf_minutes boundary)."""
+        now    = datetime.now(timezone.utc)
+        excess = now.minute % tf_minutes
+        delta  = (tf_minutes - excess) if excess else tf_minutes
+        return (now + timedelta(minutes=delta)).replace(second=0, microsecond=0)
+
+    def _check_ftmo_pending_fills(self, symbol: str = None) -> None:
+        """
+        Called at the start of each scan cycle. For every tracked FTMO limit order:
+        - Still pending → check expiry, cancel if past candle close
+        - Gone from MT5 orders + position exists → limit filled → register in state
+        - Gone + no position → expired naturally → clean up tracker
+        """
+        if not self._pending_ftmo_limits or self._paper:
+            return
+
+        to_remove = []
+        for order_ticket, pending in list(self._pending_ftmo_limits.items()):
+            sym = pending['symbol']
+            if symbol and sym != symbol:
+                continue
+
+            still_pending = self._adapter.get_pending_order(order_ticket)
+            if still_pending is not None:
+                if datetime.now(timezone.utc) > pending['expires']:
+                    logger.info(f"FTMO {sym}: LIMIT #{order_ticket} past expiry — cancelling")
+                    self._adapter.cancel_order(order_ticket)
+                    to_remove.append(order_ticket)
+                continue  # still waiting
+
+            # Order gone from pending — check if it became a position
+            fill_price = None
+            pos_ticket = None
+            try:
+                import MetaTrader5 as _mt5c
+                cfg     = INSTRUMENTS.get(sym, {})
+                mt5_sym = cfg.get('mt5_symbol', sym)
+                positions = _mt5c.positions_get(symbol=mt5_sym)
+                if positions:
+                    for p in positions:
+                        if p.magic == _FTMO_MAGIC:
+                            fill_price = p.price_open
+                            pos_ticket = p.ticket
+                            break
+            except Exception as _pe:
+                logger.debug(f"FTMO pending fill check error: {_pe}")
+
+            to_remove.append(order_ticket)
+
+            if fill_price:
+                sig    = pending['sig']
+                setup  = pending['setup']
+                lots   = pending['lots']
+                is_lng = setup['direction'] == 'BULLISH'
+                sl_d   = abs(sig['entry'] - sig['stop_loss'])
+                new_sl = round(fill_price - sl_d if is_lng else fill_price + sl_d, 5)
+                new_t1 = round(fill_price + sl_d * 2 if is_lng else fill_price - sl_d * 2, 5)
+                new_t2 = round(fill_price + sl_d * 3 if is_lng else fill_price - sl_d * 3, 5)
+                new_t3 = round(fill_price + sl_d * 4 if is_lng else fill_price - sl_d * 4, 5)
+                new_risk = round(dollar_risk(sym, lots, fill_price, new_sl), 2)
+
+                setup['entry_signal'].update({
+                    'entry': fill_price, 'stop_loss': new_sl,
+                    'target1': new_t1, 'target2': new_t2, 'target3': new_t3,
+                })
+                trade = ftmo_open_trade(setup, lots)
+                if trade:
+                    eff_ticket = pos_ticket or order_ticket
+                    ftmo_update_ticket(trade['id'], eff_ticket)
+                    ftmo_update_fill(trade['id'], fill_price, new_sl,
+                                     new_t1, new_t2, new_t3, new_risk)
+                    try:
+                        self._adapter.modify_sl(sym, eff_ticket, new_sl)
+                    except Exception:
+                        pass
+                    label = INSTRUMENTS.get(sym, {}).get('label', sym)
+                    _send(
+                        f"✅ <b>CB6 QUANTUM — LIMIT FILLED — {label}</b>\n\n"
+                        f"Direction  : {'LONG (BUY)' if is_lng else 'SHORT (SELL)'}\n"
+                        f"Fill       : {fill_price:.5f}\n"
+                        f"SL (adj)   : {new_sl:.5f}\n"
+                        f"T1 / T2    : {new_t1:.5f} / {new_t2:.5f}\n"
+                        f"Risk       : ${new_risk:.2f}\n"
+                        f"MT5 Ticket : #{eff_ticket}\n"
+                        f"Time       : {datetime.now().strftime('%H:%M:%S IST')}"
+                    )
+                    logger.info(
+                        f"FTMO {sym}: LIMIT #{order_ticket} FILLED @ {fill_price:.5f} "
+                        f"| fill-adjusted SL {new_sl:.5f}"
+                    )
+            else:
+                logger.info(f"FTMO {sym}: LIMIT #{order_ticket} expired without fill")
+
+        for t in to_remove:
+            self._pending_ftmo_limits.pop(t, None)
 
     # ── Scanner ────────────────────────────────────────────────────────────────
 
@@ -838,6 +957,9 @@ class ForexWorker:
                     f"EMERGENCY_STOP.flag active — FTMO scan skipped ({symbol})"
                 )
                 return
+
+            # ── Pending limit fill check (runs every candle, no gate) ──────────
+            self._check_ftmo_pending_fills(symbol)
 
             state = load_state()
             if state.get('paused'):
@@ -893,6 +1015,35 @@ class ForexWorker:
                 logger.debug(f"FOREX {symbol}: daily ATR fetch skipped: {_atr_e}")
 
             setup = _scan_setup(df, symbol, min_rr=MIN_RR, daily_atr=_daily_atr)
+
+            # ── MTF DOL scanner (universal pattern — runs when main scanner misses) ─
+            # Fetches 3m + 5m data and looks for the HTF-displacement → LTF-sweep
+            # → CHoCH → FVG scalp pattern (validated on XAUUSD Jun 4, 2026 session).
+            # Works on any symbol — fires only when main 15m scanner finds nothing,
+            # preventing double-entry on the same structural event.
+            if not setup:
+                try:
+                    from forex_engine.scanner.mtf_dol_scanner import scan_mtf_dol
+                    _df_3m = self._adapter.get_klines(symbol, '3m',  60)
+                    _df_5m = self._adapter.get_klines(symbol, '5m',  40)
+                    _h4_b  = _get_h4_bias(self._adapter, symbol)
+                    _mtf_setup = scan_mtf_dol(
+                        df_3m  = _df_3m,
+                        df_5m  = _df_5m,
+                        df_15m = df,
+                        symbol = symbol,
+                        h4_bias= _h4_b,
+                    )
+                    if _mtf_setup:
+                        logger.info(
+                            f"FOREX {symbol}: MTF DOL setup found — "
+                            f"{_mtf_setup['direction']} score={_mtf_setup['confluence']}/12 "
+                            f"entry={_mtf_setup['entry_signal']['entry']:.5f}"
+                        )
+                        setup = _mtf_setup
+                except Exception as _mtf_e:
+                    logger.debug(f"FOREX {symbol}: MTF scanner error: {_mtf_e}")
+
             if not setup:
                 return
             try:
@@ -925,68 +1076,84 @@ class ForexWorker:
 
             today = datetime.now().strftime('%Y-%m-%d')
 
-            # H1 HTF bias — block counter-trend setups (Judas swing protection)
-            # Exception: CHoCH score ≥ 11 overrides H1 EMA — CHoCH means structure
-            # has already shifted, EMA is a lagging indicator that hasn't caught up.
-            # RANGING means no clear H1 trend — allow trade but raise score gate by +1
+            # H1 HTF bias — hard block, no CHoCH override.
+            # CHoCH on 15m confirms 15m structure shift, not H1 trend reversal.
             h1_bias    = _get_h1_bias(self._adapter, symbol)
             h1_ranging = (h1_bias == 'RANGING')
             mss_type_h1 = setup.get('mss_type', 'BOS')
             score_h1    = setup['confluence']
-            choch_override = (mss_type_h1 == 'CHOCH' and score_h1 >= 11)
 
-            if not h1_ranging and h1_bias != setup['direction'] and not choch_override:
-                sig     = setup['entry_signal']
-                fvg_key = round(sig['fvg_low'] * 1000) / 1000
-                ema_key = (today, setup['direction'], fvg_key)
-                if ema_key not in self._ema_alerted[symbol]:
-                    self._ema_alerted[symbol].add(ema_key)
-                    self._ema_alerted[symbol] = {k for k in self._ema_alerted[symbol] if k[0] == today}
-                    msg = (
-                        f"⚠️ <b>CB6 QUANTUM — EMA BLOCK</b>\n\n"
-                        f"Symbol    : {symbol}\n"
-                        f"15m Setup : {setup['direction']} {mss_type_h1} "
-                        f"score={score_h1}/14\n"
-                        f"H1 Bias   : {h1_bias} (EMA disagrees)\n"
-                        f"Entry was : {sig['entry']} | SL {sig['stop_loss']}\n"
-                        f"Reason    : Counter-trend — Judas swing risk\n"
-                        f"Time      : {datetime.now().strftime('%H:%M:%S IST')}"
+            if not h1_ranging and h1_bias != setup['direction']:
+                # ── 3-wave reversal exception ─────────────────────────────────
+                # Condition: MTF scanner found it + score≥10 + wave_count≥3
+                # + liq sweep confirmed. Allow at half size, T1 exit only.
+                # This is Rahul's rule: sell always happens in 3 waves;
+                # 3rd pullback = reversal entry, not a Judas swing.
+                _wave_count = setup.get('wave_count', 0)
+                _is_3wave = (
+                    setup.get('scanner') == 'MTF_DOL'
+                    and _wave_count >= 3
+                    and setup.get('confluence', 0) >= 11
+                    and setup.get('sweep_confirmed', False)
+                )
+                if _is_3wave:
+                    import time as _time
+                    setup['size_multiplier'] = 0.5
+                    setup['t1_only']         = True
+                    setup['reversal_3wave']  = True
+                    logger.info(
+                        f"FOREX {symbol}: 3-WAVE REVERSAL — counter-H1 allowed "
+                        f"(wave={_wave_count} score={setup['confluence']} H1={h1_bias}) "
+                        f"HALF SIZE T1-only"
                     )
-                    _send(msg)
-                logger.info(
-                    f"FOREX {symbol}: H1 {h1_bias} ≠ 15m {setup['direction']} "
-                    f"— counter-trend, Judas swing risk — blocked"
-                )
-                return
+                    _now = _time.time()
+                    _last = _reversal_alert_cache.get(symbol, 0)
+                    if _now - _last > 2700:   # suppress if same symbol alerted < 45min ago
+                        _reversal_alert_cache[symbol] = _now
+                        _send(
+                            f"🔄 <b>CB6 QUANTUM — 3-WAVE REVERSAL</b>\n\n"
+                            f"Symbol    : {symbol}\n"
+                            f"Direction : {setup['direction']} (counter-H1)\n"
+                            f"H1 Bias   : {h1_bias}\n"
+                            f"Wave count: {_wave_count} impulse legs complete\n"
+                            f"Score     : {setup['confluence']}/12\n"
+                            f"Entry     : {setup['entry_signal']['entry']} "
+                            f"SL {setup['entry_signal']['stop_loss']}\n"
+                            f"Size      : HALF | Exit at T1 only\n"
+                            f"Rule      : 3-wave exhaustion + liq sweep = reversal"
+                        )
+                else:
+                    sig     = setup['entry_signal']
+                    fvg_key = round(sig['fvg_low'] * 1000) / 1000
+                    ema_key = (today, setup['direction'], fvg_key)
+                    if ema_key not in self._ema_alerted[symbol]:
+                        self._ema_alerted[symbol].add(ema_key)
+                        self._ema_alerted[symbol] = {k for k in self._ema_alerted[symbol] if k[0] == today}
+                        _send(
+                            f"⚠️ <b>CB6 QUANTUM — EMA BLOCK</b>\n\n"
+                            f"Symbol    : {symbol}\n"
+                            f"15m Setup : {setup['direction']} {mss_type_h1} "
+                            f"score={score_h1}/20\n"
+                            f"H1 Bias   : {h1_bias} (EMA disagrees)\n"
+                            f"Entry was : {sig['entry']} | SL {sig['stop_loss']}\n"
+                            f"Wave count: {_wave_count} (need ≥3 for reversal)\n"
+                            f"Reason    : Counter-trend — Judas swing risk\n"
+                            f"Time      : {datetime.now().strftime('%H:%M:%S IST')}"
+                        )
+                    logger.info(
+                        f"FOREX {symbol}: H1 {h1_bias} ≠ 15m {setup['direction']} "
+                        f"— counter-trend blocked (no override)"
+                    )
+                    return
 
-            if choch_override and h1_bias != setup['direction']:
-                logger.info(f"FOREX {symbol}: CHoCH {score_h1}/14 overrides H1 {h1_bias} EMA — structure shifted")
-            else:
-                logger.info(f"FOREX {symbol}: H1 bias {h1_bias} ✅")
+            logger.info(f"FOREX {symbol}: H1 bias {h1_bias} ✅")
 
-            # ── H4 multi-day trend gate ────────────────────────────────────────
-            # Live data shows: EVERY trade that fought the H4 trend lost.
-            # Gold: all 4 SELL losses happened while H4 was BULLISH (uptrend).
-            # Silver: only SELL loss was in Asia when H4 was ranging.
-            # Rule: trade must align with H4 OR H4 must be RANGING.
-            # Exception: CHoCH score ≥ 13 (very strong reversal = possible H4 flip)
+            # ── H4 bias — used for TP targeting and A+ scoring only ─────────────
+            # Removed as direction gate: log analysis Jun 1-5 showed H4 blocked
+            # 17 valid 3-wave exhaustion setups and 0 bad trades. The 3-wave rule
+            # (wave≥3 + sweep + score≥11) is the gate — H4 marks levels, not direction.
             h4_bias = _get_h4_bias(self._adapter, symbol)
-            if (h4_bias != 'RANGING'
-                    and h4_bias != setup['direction']
-                    and not (setup.get('mss_type') == 'CHOCH' and setup['confluence'] >= 13)):
-                logger.info(
-                    f"FOREX {symbol}: H4 BIAS BLOCK — H4 is {h4_bias}, "
-                    f"setup is {setup['direction']} (score {setup['confluence']}/14) — skip"
-                )
-                _send(
-                    f"<b>H4 TREND BLOCK — {symbol}</b>\n\n"
-                    f"H4 bias  : {h4_bias}\n"
-                    f"Setup    : {setup['direction']} {setup.get('mss_type','BOS')} "
-                    f"score={setup['confluence']}/14\n"
-                    f"Reason   : Counter multi-day trend — pattern shows 100% loss rate\n"
-                    f"Need     : H4 aligned OR CHoCH score ≥13"
-                )
-                return
+            logger.info(f"FOREX {symbol}: H4 context {h4_bias} (informational — not a gate)")
 
             # ── Regime context (Phase 3 intelligence — enriches ML records) ─────
             # Non-blocking: if archive has no data, falls back to UNKNOWN gracefully.
@@ -1550,7 +1717,85 @@ class ForexWorker:
                                 f"Time      : {datetime.now().strftime('%H:%M:%S IST')}"
                             )
                     else:
-                        ftmo_trade = ftmo_open_trade(setup, ftmo_lots)
+                        # ── Live price gate ─────────────────────────────────────────
+                        # Re-check current MT5 price against FVG zone at execution time.
+                        # The scanner uses the LAST CANDLE CLOSE — by the time we reach
+                        # this point, price may have displaced past the FVG. This guard
+                        # caught the USOIL 94.259→94.907 market-chase failure.
+                        _live_px     = self._adapter.get_price(symbol)
+                        _entry_mode  = setup.get('entry_mode', 'MARKET')
+                        _fvg_low_s   = sig.get('fvg_low',  sig['entry'])
+                        _fvg_hi_s    = sig.get('fvg_high', sig['entry'])
+                        _is_long     = setup['direction'] == 'BULLISH'
+
+                        if _live_px:
+                            if _is_long and _live_px > _fvg_hi_s:
+                                _entry_mode = 'LIMIT'
+                                logger.warning(
+                                    f"FTMO {symbol}: live {_live_px:.5f} > FVG top "
+                                    f"{_fvg_hi_s:.5f} — scanner close was stale, "
+                                    f"promoting to LIMIT order @ {sig['entry']:.5f}"
+                                )
+                            elif not _is_long and _live_px < _fvg_low_s:
+                                _entry_mode = 'LIMIT'
+                                logger.warning(
+                                    f"FTMO {symbol}: live {_live_px:.5f} < FVG bottom "
+                                    f"{_fvg_low_s:.5f} — scanner close was stale, "
+                                    f"promoting to LIMIT order @ {sig['entry']:.5f}"
+                                )
+                        setup['entry_mode'] = _entry_mode
+
+                        if _entry_mode == 'LIMIT' and not self._paper:
+                            # Place pending limit order — NOT registered in state yet.
+                            # _check_ftmo_pending_fills() will register it on fill.
+                            _lmt_expiry  = ForexWorker._next_candle_expiry(tf_minutes=15)
+                            _lmt_result  = self._adapter.place_limit_order(
+                                symbol    = symbol,
+                                direction = 'BUY' if _is_long else 'SELL',
+                                lots      = ftmo_lots,
+                                entry     = sig['entry'],
+                                sl        = sig['stop_loss'],
+                                tp        = sig['target2'],
+                                magic     = _FTMO_MAGIC,
+                                expiry    = _lmt_expiry,
+                            )
+                            if _lmt_result and _lmt_result.get('ticket'):
+                                _ord_ticket = _lmt_result['ticket']
+                                self._pending_ftmo_limits[_ord_ticket] = {
+                                    'symbol'  : symbol,
+                                    'setup'   : setup,
+                                    'sig'     : sig,
+                                    'lots'    : ftmo_lots,
+                                    'risk_usd': ftmo_risk,
+                                    'expires' : _lmt_expiry,
+                                }
+                                self._dedup.mark_seen(symbol, setup['direction'], fvg_key)
+                                label = INSTRUMENTS.get(symbol, {}).get('label', symbol)
+                                _send(
+                                    f"⏳ <b>CB6 QUANTUM — FTMO LIMIT ORDER</b>\n\n"
+                                    f"Direction  : {'LONG (BUY)' if _is_long else 'SHORT (SELL)'}\n"
+                                    f"Symbol     : {label}\n"
+                                    f"Entry (LMT): {sig['entry']:.5f}\n"
+                                    f"SL         : {sig['stop_loss']:.5f}\n"
+                                    f"T1 / T2    : {sig['target1']:.5f} / {sig['target2']:.5f}\n"
+                                    f"Live price : {_live_px:.5f}\n"
+                                    f"Score      : {setup['confluence']}/18\n"
+                                    f"Expires    : {_lmt_expiry.strftime('%H:%M UTC')}\n"
+                                    f"MT5 Order  : #{_ord_ticket}"
+                                )
+                                logger.info(
+                                    f"FTMO {symbol}: LIMIT #{_ord_ticket} @ {sig['entry']:.5f} "
+                                    f"| live was {_live_px:.5f if _live_px else 'N/A'} "
+                                    f"| expires {_lmt_expiry.strftime('%H:%M UTC')}"
+                                )
+                            else:
+                                logger.error(
+                                    f"FTMO {symbol}: limit order FAILED — "
+                                    f"setup skipped (live={_live_px})"
+                                )
+                                _send(f"⚠️ FTMO {symbol}: LIMIT order placement FAILED — skipping entry.")
+                        else:
+                            ftmo_trade = ftmo_open_trade(setup, ftmo_lots)
 
             if ftmo_trade:
                 self._dedup.mark_seen(symbol, setup['direction'], fvg_key)
@@ -1978,15 +2223,16 @@ class ForexWorker:
         threading.Thread(target=self._heartbeat_loop, daemon=True,
                      name="ForexHeartbeat").start()
 
-        # Poll for new candles — 3m candle duration requires frequent polling
-        # Paper: 30s (yfinance delays; 5m fallback used — candle fires ~every 5m)
-        # Live MT5: 15s (MT5 is real-time; 3m candle needs sub-candle poll)
+        # Poll for new candles — 15m candle needs intra-candle scanning
+        # Paper: 30s (yfinance delayed; no intracandle — stale data makes it pointless)
+        # Live MT5: 15s + intracandle every poll — MT5 pos=0 returns live forming bar
         poll_secs = 30 if self._paper else 15
         self._adapter.start_polling(
             symbols          = ACTIVE_SYMBOLS,
             interval         = INTERVAL,
             on_closed_candle = self._on_closed_candle,
             poll_secs        = poll_secs,
+            on_intracandle   = None if self._paper else self._on_intracandle_poll,
         )
 
         logger.info("Forex engine running.")

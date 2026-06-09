@@ -81,11 +81,43 @@ def train(market: str, account: str = '',
     scaler = StandardScaler()
     X_sc   = scaler.fit_transform(X).astype(np.float32)
 
+    # ── Class-balanced pos_weight (penalises under-predicting minority class) ──
+    n_pos = float(y_cls.sum())
+    n_neg = float(len(y_cls) - n_pos)
+    pos_w = torch.tensor([n_neg / max(n_pos, 1)], dtype=torch.float32)
+    logger.info(f"DNN [{market}]: pos_weight={pos_w.item():.3f} "
+                f"(wins={int(n_pos)} losses={int(n_neg)})")
+
+    # ── Per-sample weights: class balance + rare macro events ────────────────
+    # Two factors combined into one weight vector:
+    #   1. Class imbalance: minority class rows weighted by pos_weight
+    #      WIN rows  → weight pos_w  (if losses > wins, pos_w > 1 → upweight wins)
+    #      LOSS rows → weight 1.0
+    #   2. Rare macro events: shock/election rows get 2× on top of class weight
+    from ml.data_pipeline import NSE_FEATURES, FOREX_FEATURES
+    feat_cols = NSE_FEATURES if market == 'nse' else FOREX_FEATURES
+
+    # Class weight: pos_weight applied to WIN rows (y_cls == 1)
+    class_w = np.where(y_cls > 0.5, pos_w.item(), 1.0).astype(np.float32)
+
+    # Macro rarity weight: 2× for shock/election rows
+    try:
+        shock_col = feat_cols.index('macro_shock_active')
+        elect_col = feat_cols.index('is_election_week')
+        is_rare   = ((X[:, shock_col] > 0) | (X[:, elect_col] > 0)).astype(np.float32)
+        macro_w   = 1.0 + is_rare   # 1.0 or 2.0
+    except (ValueError, IndexError):
+        macro_w = np.ones(len(X_sc), dtype=np.float32)
+
+    sample_w = torch.tensor(class_w * macro_w, dtype=torch.float32)
+    logger.info(f"DNN [{market}]: sample_w range [{sample_w.min():.2f}, {sample_w.max():.2f}] "
+                f"macro_rare={int((macro_w > 1).sum())}/{len(macro_w)} rows")
+
     Xt  = torch.tensor(X_sc)
     yct = torch.tensor(y_cls)
     yrt = torch.tensor(y_r)
 
-    dataset    = TensorDataset(Xt, yct, yrt)
+    dataset    = TensorDataset(Xt, yct, yrt, sample_w)
     val_size   = max(1, int(len(dataset) * 0.2))
     train_size = len(dataset) - val_size
     train_ds, val_ds = random_split(dataset, [train_size, val_size],
@@ -97,27 +129,29 @@ def train(market: str, account: str = '',
     model     = CB6DNN(X_sc.shape[1])
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=15, factor=0.5)
-    cls_loss  = nn.BCELoss()
+    cls_loss  = nn.BCELoss(reduction='none')   # per-sample so we can apply weights
     reg_loss  = nn.HuberLoss()
 
     best_val, best_state = float('inf'), None
 
     for epoch in range(epochs):
         model.train()
-        for xb, yc, yr in train_dl:
+        for xb, yc, yr, sw in train_dl:
             optimizer.zero_grad()
             wp, rp = model(xb)
-            loss   = cls_loss(wp, yc) + 0.5 * reg_loss(rp, yr)
+            # Weighted classification loss: rare macro events count 2×
+            wt_cls = (cls_loss(wp, yc) * sw).mean()
+            loss   = wt_cls + 0.5 * reg_loss(rp, yr)
             loss.backward()
             optimizer.step()
 
-        # Validation
+        # Validation (unweighted — measures true generalisation)
         model.eval()
         val_losses = []
         with torch.no_grad():
-            for xb, yc, yr in val_dl:
+            for xb, yc, yr, _sw in val_dl:
                 wp, rp   = model(xb)
-                vl       = cls_loss(wp, yc) + 0.5 * reg_loss(rp, yr)
+                vl       = cls_loss(wp, yc).mean() + 0.5 * reg_loss(rp, yr)
                 val_losses.append(vl.item())
         vl_mean = float(np.mean(val_losses))
         scheduler.step(vl_mean)

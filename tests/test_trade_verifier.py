@@ -43,6 +43,8 @@ def isolated_verifier(tmp_path, monkeypatch):
     import utils.trade_verifier as tv
     tv.TradeVerifier._instance = None
     monkeypatch.setattr(tv, "_AUDIT_DIR", str(tmp_path))
+    # Pin CAPITAL to a large test default so risk% checks are .env-independent
+    monkeypatch.setenv("CAPITAL", "200000")
     yield tv.get_verifier()
     tv.TradeVerifier._instance = None
 

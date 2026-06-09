@@ -54,10 +54,8 @@ def validate_trade(
     if not setup.get('in_fvg'):
         return False, "NOT IN FVG — price must retest FVG before entry"
 
-    # 5. H4 bias gate
-    if (h4_bias != 'RANGING' and h4_bias != direction
-            and not (mss_type == 'CHOCH' and score >= 13)):
-        return False, f"H4 BIAS BLOCK — H4={h4_bias}, setup={direction}"
+    # 5. H4 bias — informational only, not a gate.
+    # Removed: 15-day backtest confirmed H4 gate blocked only valid 3-wave setups.
 
     # 6. Silver Asia SELL block
     if symbol == 'XAGUSD' and utc_hour < 7 and direction == 'BEARISH':

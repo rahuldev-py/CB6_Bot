@@ -12,6 +12,17 @@ from forex_engine.forex_instruments import (   # noqa: F401 — re-exports
 )
 
 
+def cap_lots_for_account(symbol: str, lots: float, profile: dict) -> float:
+    """
+    Apply per-symbol max_lot cap from account profile dict.
+    Falls back to profile['max_lot'] if no per-symbol entry.
+    Call this AFTER calc_lot_size for per-account XAUUSD safety limits.
+    """
+    per_sym = profile.get('max_lot_per_symbol', {})
+    cap = per_sym.get(symbol, profile.get('max_lot', lots))
+    return min(lots, cap)
+
+
 def dollar_value_per_pip(symbol: str, lots: float) -> float:
     """Dollar value of 1 pip move for given lots."""
     cfg = INSTRUMENTS.get(symbol, {})

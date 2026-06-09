@@ -1,5 +1,8 @@
 # NSE Trading Rules — CB6 Quantum
 
+> **REAL MONEY ACCOUNT** — Fyers balance ₹26,000 live as of 2026-06-05.
+> This is not paper mode. Every trade entry risks real capital. Apply full discipline.
+
 ## Absolute Constraints
 - **Index futures + options ONLY** — NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY
 - **Zero equity/stock trades** — ever, under any circumstance
@@ -17,8 +20,8 @@ All 4 indices are active (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY):
 - Instruments: Index futures for intraday, options for directional plays
 
 ## Data Source
-- Current: Fyers API (live feed)
-- NSE real-time paid feed: Coming soon (user will add)
+- Current: TrueData (primary, trial expires 2026-06-09 → auto-fallback to Fyers)
+- Fyers API: fallback + token refresh via `python auto_token.py`
 - Historical: `data/nse_eod.py` kept as reference for data shape
 
 ## Win Rate Gate for SaaS

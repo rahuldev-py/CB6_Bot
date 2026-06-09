@@ -1,0 +1,83 @@
+==============================================================
+CB6 QUANTUM — END OF DAY REPORT
+Date      : 09 Jun 2026  15:30 IST
+Trigger   : NSE_CLOSE
+UTC       : 10:00 UTC
+==============================================================
+
+── NSE — FYERS LIVE (Rs 26,000) ─────────────────────────
+
+  Capital      : Rs 33,000
+  Trades Today : 0  (Wins: 0  Losses: 0)
+  Win Rate     : 0.0%
+  Realized PnL : Rs +0  (+0.00%)
+  Open Trades  : 0  (all closed)
+
+── GFT $5K 2-STEP  (PRIMARY ACCOUNT) ───────────────────
+
+  Capital      : $4,851.32  (started $5,000.00)
+  Total PnL    : $-148.68
+  Daily PnL    : $-13.05  (limit: -$200)
+  Phase 1      : Need $+400.00 more  |  Days: 2/3 min
+  Trades Today : 1  (Wins: 0  Losses: 1)
+  Today PnL    : $-13.05
+  Risk Mode    : normal
+
+  TRADE LOG:
+    XAGUSD     LOSS  $-13.05  [MAE_EXIT]
+
+── GFT $1K INSTANT  (SECONDARY ACCOUNT) ────────────────
+
+  Capital      : $982.53  (started $1,000.00)
+  Total PnL    : $-17.47
+  Daily PnL    : $+0.00  (limit: -$30)
+  Trades Today : 0  (Wins: 0  Losses: 0)
+  Today PnL    : $+0.00
+  Risk Mode    : normal
+
+── FTMO $25K DEMO  (DEPRIORITIZED — INFO ONLY) ─────────
+
+  Capital   : $25,000.00  |  Total PnL: $+0.00
+  Daily PnL : $+0.00  (limit: -$750)
+  [No active engineering effort — runs as-is]
+
+── PATTERN DB — TODAY'S TRADE QUALITY ──────────────────
+
+  Trades Logged : 3  (Wins: 0  Losses: 3)
+  Win Rate      : 0.0%
+  Avg R         : -1.69
+  H4 Aligned    : 0/3  (0%)
+  Avg Confluence: 13.0
+  Avg FVG Body% : 0.0%
+
+── HERMES LEARNING LOOP — PENDING NUDGES ────────────────
+
+  No pending parameter nudges — system stable.
+
+── ML SHADOW SYSTEM ────────────────────────────────────
+
+  [ML data error: 'str' object has no attribute 'get']
+  Mode: SHADOW ONLY — predictions logged, never placed orders
+
+── GFT PHASE 1 PROGRESS TRACKER ─────────────────────────
+
+  Phase 1 Progress : [░░░░░░░░░░░░░░░░░░░░░░░░░░░] -37.2%
+  Profit so far    : $-148.68  /  Target: +$400
+  Still needed     : $548.68
+  Trading days     : 2 / 3 minimum
+  Internal limits  : Warn $100 | Reduce 50% $140 | Hard stop $170/day
+
+── TOMORROW'S WATCH LIST ─────────────────────────────────
+
+  Fill in after running /market-analyst:
+  NIFTY    Buy-side DOL: ____  |  Sell-side DOL: ____
+  BANKNIFTY Buy-side: ____     |  Sell-side: ____
+  XAGUSD   H4 bias: ____       |  Next DOL: ____
+  USOIL    H4 bias: ____       |  Next DOL: ____
+
+  Key news/events: Check ForexFactory before London open.
+
+==============================================================
+Next session: 09:15 IST  |  London kill zone: 07:00 UTC
+Run /daily-brief at open for market structure update.
+==============================================================

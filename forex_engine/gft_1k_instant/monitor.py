@@ -10,6 +10,15 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+# Load .env so subprocess has all credentials when started directly via -m
+try:
+    from dotenv import dotenv_values as _dv
+    for _k, _v in _dv(os.path.join(_ROOT, ".env")).items():
+        if _k not in os.environ:
+            os.environ[_k] = _v
+except Exception:
+    pass
+
 from utils.emergency_stop import is_emergency_stop_active
 from utils.logger import logger
 from forex_engine.data.slippage_tracker import SlippageTracker
@@ -31,7 +40,7 @@ from forex_engine.gft_1k_instant.state import (
 from forex_engine.scanner.signal_scanner import scan_setup, in_rollover_window
 from forex_engine.scanner.structure_scanner import get_h1_bias, get_h4_bias
 from forex_engine.trade.duplicate_guard import DuplicateGuard
-from forex_engine.trade.lot_calculator import calc_lot_size, dollar_risk
+from forex_engine.trade.lot_calculator import calc_lot_size, dollar_risk, cap_lots_for_account
 
 
 _P = GFT_1K_INSTANT_PROFILE
@@ -75,6 +84,21 @@ class GFT1KInstantWorker:
             name=f"GFT1K_{symbol}",
         ).start()
 
+    def on_intracandle_poll(self, symbol: str, df):
+        """Fires every 15s with live forming bar from MT5 (pos=0 OHLC)."""
+        utc_hour = datetime.now(timezone.utc).hour
+        if not any(s <= utc_hour < e for s, e in [(7, 12), (16, 20)]):
+            return
+        if symbol not in _P["enabled_symbols"]:
+            return
+        self._candles[symbol] = df
+        threading.Thread(
+            target=self._scan,
+            args=(symbol,),
+            daemon=True,
+            name=f"GFT1KIntra_{symbol}",
+        ).start()
+
     def _scan(self, symbol: str):
         if not self._locks[symbol].acquire(blocking=False):
             return
@@ -101,7 +125,13 @@ class GFT1KInstantWorker:
         if df is None or len(df) < 40:
             return
 
-        setup = scan_setup(df, symbol, min_rr=_P["min_rr"])
+        # Pre-fetch H4 bias before scanner so gate is enforced at scan time (belt-and-suspenders)
+        _h4_pre = get_h4_bias(self._connector, symbol)
+        # Re-check KZ: H4 fetch is an MT5 call that can block for minutes; if KZ closed while
+        # waiting, the scan would fire with stale KZ context — abort before calling scan_setup.
+        if not any(s <= datetime.now(timezone.utc).hour < e for s, e in [(7, 12), (16, 20)]):
+            return
+        setup = scan_setup(df, symbol, min_rr=_P["min_rr"], h4_bias=_h4_pre)
         if not setup:
             return
         self._alert("trade_signal_received", f"{symbol} setup received")
@@ -110,12 +140,65 @@ class GFT1KInstantWorker:
         direction = setup["direction"]
         h1_bias = get_h1_bias(self._connector, symbol)
         h4_bias = get_h4_bias(self._connector, symbol)
+
+        # H4 — 3-wave reversal rule (not a hard gate on direction).
+        # Counter-H4 allowed only when 3 impulse waves complete + sweep confirmed.
         if h4_bias not in ("RANGING", direction):
-            logger.info(f"GFT 1K Instant {symbol}: H4 block - {h4_bias}")
-            return
+            _wc_h4 = int(setup.get('wave_count', 0) or 0)
+            _sw_h4 = bool(setup.get('sweep_confirmed', False))
+            if _wc_h4 >= 3 and _sw_h4:
+                logger.info(
+                    f"GFT 1K Instant {symbol}: counter-H4 ALLOWED — 3-wave reversal "
+                    f"wave={_wc_h4} H4={h4_bias} HALF SIZE"
+                )
+                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                setup['t1_only']         = True
+            else:
+                logger.info(
+                    f"GFT 1K Instant {symbol}: counter-H4 SKIP — 3-wave not complete "
+                    f"wave={_wc_h4} sweep={_sw_h4} H4={h4_bias}"
+                )
+                return
+
+        # Wave exhaustion tag (5-6 waves)
+        _wc_now = int(setup.get('wave_count', 0) or 0)
+        setup['wave_count_tag'] = _wc_now
+        setup['wave_exhaustion'] = _wc_now >= 5
+        if _wc_now >= 5:
+            logger.info(
+                f"GFT 1K Instant {symbol}: ⭐ WAVE EXHAUSTION TAG — {_wc_now} waves "
+                f"direction={direction} H4={h4_bias}"
+            )
+            try:
+                import json as _json, os as _os
+                _wex_path = _os.path.join(
+                    _os.path.dirname(_os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))),
+                    'data', 'wave_exhaustion_log.jsonl'
+                )
+                _wex_row = {
+                    'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'symbol': symbol, 'direction': direction,
+                    'wave_count': _wc_now, 'h4_bias': h4_bias,
+                    'score': setup.get('confluence', 0),
+                    'account': 'GFT_1K_INSTANT',
+                }
+                with open(_wex_path, 'a', encoding='utf-8') as _wf:
+                    _wf.write(_json.dumps(_wex_row) + '\n')
+            except Exception:
+                pass
+
+        # H1 — 3-wave exception: counter-H1 allowed when wave≥3 + sweep confirmed
+        _wc = int(setup.get('wave_count', 0) or 0)
+        _sw = bool(setup.get('sweep_confirmed', False))
         if h1_bias not in ("RANGING", direction):
-            logger.info(f"GFT 1K Instant {symbol}: H1 block - {h1_bias}")
-            return
+            if _wc >= 3 and _sw:
+                logger.info(f"GFT 1K Instant {symbol}: 3-WAVE counter-H1 allowed wave={_wc} HALF SIZE T1-only")
+                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                setup['t1_only']         = True
+                setup['reversal_3wave']  = True
+            else:
+                logger.info(f"GFT 1K Instant {symbol}: H1 block — H1={h1_bias} wave={_wc} (need ≥3 + sweep)")
+                return
 
         fvg_low = signal.get("fvg_low")
         if self._dedup.is_duplicate(symbol, direction, fvg_low):
@@ -135,7 +218,7 @@ class GFT1KInstantWorker:
             signal["stop_loss"],
             _P["risk_per_trade_pct"],
         )
-        lots = min(round(lots, 2), _P["max_lot"])
+        lots = cap_lots_for_account(symbol, round(lots, 2), _P)
         risk_usd = dollar_risk(symbol, lots, signal["entry"], signal["stop_loss"])
         risk_usd = min(risk_usd, _P["max_risk_usd"])
 
@@ -281,6 +364,7 @@ class GFT1KInstantWorker:
             interval="15m",
             on_closed_candle=self.on_closed_candle,
             poll_secs=60 if self._paper else 15,
+            on_intracandle=None if self._paper else self.on_intracandle_poll,
         )
 
         while self._running:

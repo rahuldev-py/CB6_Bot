@@ -91,17 +91,6 @@ class TestGFTMagicRequired:
 
 class TestFTMOMagicConsistency:
 
-    def test_account_router_uses_env(self, monkeypatch):
-        """account_router.get_account(FTMO).magic_number reflects FTMO_MAGIC env."""
-        monkeypatch.setenv("FTMO_MAGIC", "62002")
-
-        # Force reload so monkeypatched env is picked up.
-        import core.account_router as ar
-        if hasattr(ar, '_build_registry'):
-            registry = ar._build_registry()
-            from core.schemas import Engine
-            assert registry[Engine.FTMO].magic_number == 62002
-
     def test_ftmo_config_uses_env(self, monkeypatch):
         """ftmo_config.FTMO_MAGIC reflects FTMO_MAGIC env var."""
         monkeypatch.setenv("FTMO_MAGIC", "62002")

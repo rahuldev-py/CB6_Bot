@@ -155,6 +155,7 @@ def record_entry(trade: dict, setup: dict, mode: str = 'paper') -> bool:
             # ── Confluence ────────────────────────────────────────────────────
             'score'              : score,
             'score_flags'        : score_flags,
+            'ob_duration_mins'   : float(setup.get('ob_duration_mins', 0) or 0),
 
             # ── HTF bias ──────────────────────────────────────────────────────
             'h1_bias'            : h1_bias,

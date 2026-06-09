@@ -52,13 +52,15 @@ if _ROOT not in sys.path:
 class TestAccountRegistry:
 
     def test_loads_ftmo_account(self):
-        """Registry returns FTMO_10K config."""
+        """Registry FTMO account matches the active FTMO profile config."""
         from forex_engine.accounts.account_registry import get_account
+        from forex_engine.prop_firms.ftmo.ftmo_config import ACCOUNT_SIZE
+
         cfg = get_account('FTMO_10K')
         assert cfg is not None
         assert cfg['magic'] == 62002
         assert cfg['risk_profile'] == 'ftmo'
-        assert cfg['account_size'] == 10000.0
+        assert cfg['account_size'] == ACCOUNT_SIZE
 
     def test_loads_gft_account(self):
         """Registry returns GFT_5K config."""
@@ -337,8 +339,10 @@ class TestPreEntryValidator:
         from forex_engine.accounts.pre_entry_validator import PreEntryValidator
         v = PreEntryValidator('FTMO_10K', connector=None)
 
-        # 5% of $10K = $500 daily loss limit
-        state = self._clean_state(daily_pnl=-501.0)
+        from forex_engine.accounts.account_registry import get_account
+        cfg = get_account('FTMO_10K')
+        daily_loss_limit = cfg['account_size'] * cfg['max_daily_loss_pct'] / 100
+        state = self._clean_state(daily_pnl=-(daily_loss_limit + 1.0))
         ok, reason = v.validate({}, state)
         assert ok is False
         assert 'daily loss' in reason.lower()
@@ -401,19 +405,31 @@ class TestIsolationBaselines:
 
     def test_ftmo_gft_have_different_state_dirs(self):
         """FTMO and GFT state directories are different paths — no shared state."""
-        from forex_engine.accounts.account_registry import get_state_dir
+        from forex_engine.accounts.account_registry import get_account, get_state_dir
         ftmo_dir = get_state_dir('FTMO_10K')
         gft_dir  = get_state_dir('GFT_5K')
+        ftmo_cfg = get_account('FTMO_10K')
+        gft_cfg  = get_account('GFT_5K')
         assert ftmo_dir != gft_dir
-        assert 'ftmo_10k' in ftmo_dir.lower()
-        assert 'gft_5k'   in gft_dir.lower()
+        assert ftmo_dir.replace('\\', '/').lower().endswith(
+            ftmo_cfg['state_dir'].lower()
+        )
+        assert gft_dir.replace('\\', '/').lower().endswith(
+            gft_cfg['state_dir'].lower()
+        )
 
     def test_ftmo_state_path_uses_isolated_dir(self):
-        """ftmo_state.py STATE_FILE is under data/ftmo_10k/, not legacy path."""
+        """ftmo_state.py STATE_FILE matches the registry-isolated directory."""
+        import os
+        from forex_engine.accounts.account_registry import get_state_dir
         from forex_engine.prop_firms.ftmo import ftmo_state
+
         state_file = ftmo_state.STATE_FILE
-        assert 'ftmo_10k' in state_file.replace('\\', '/').lower(), (
-            f"FTMO STATE_FILE should be under data/ftmo_10k/, got: {state_file}"
+        expected = os.path.join(get_state_dir('FTMO_10K'), 'state.json')
+        assert os.path.normcase(os.path.normpath(state_file)) == os.path.normcase(
+            os.path.normpath(expected)
+        ), (
+            f"FTMO STATE_FILE should match registry state_dir, got: {state_file}"
         )
 
     def test_gft_state_path_uses_isolated_dir(self):

@@ -1,0 +1,293 @@
+{
+  "summary": "NSE Fyers: \u20b926,000, 38 open trades, exit tracking broken. GFT $1K Instant: $982.53, 0 trades. GFT $5K 2-Step: $4,851.32, -$148.68 PnL, 2 H4 violations. FTMO $10K: $9,804.91, -$195.09 PnL, deadline June 6.",
+  "win_rate_overall": 0.6784,
+  "win_rate_by_symbol": {
+    "EURUSD": 0.4667,
+    "GBPUSD": 0.3333,
+    "USOIL": 0.6308,
+    "XAGUSD": 0.8,
+    "XAUUSD": 0.8372
+  },
+  "win_rate_by_session": {
+    "London": 0.7692,
+    "London_NY_Overlap": 0.4783,
+    "NY": 0.6353
+  },
+  "avg_rr_by_symbol": {
+    "EURUSD": 0.778,
+    "GBPUSD": 0.157,
+    "USOIL": 1.291,
+    "XAGUSD": 1.808,
+    "XAUUSD": 1.895
+  },
+  "direction_edge": {
+    "EURUSD_BEARISH": 0.3333,
+    "EURUSD_BULLISH": 0.5556,
+    "GBPUSD_BEARISH": 0.3,
+    "GBPUSD_BULLISH": 0.3636,
+    "USOIL_BEARISH": 0.7097,
+    "USOIL_BULLISH": 0.5588,
+    "XAGUSD_BEARISH": 0.8824,
+    "XAGUSD_BULLISH": 0.6667,
+    "XAUUSD_BEARISH": 0.8889,
+    "XAUUSD_BULLISH": 0.75
+  },
+  "account_status": {
+    "nse_fyers": {
+      "capital_inr": 26000,
+      "open_trades": 38,
+      "status": "exit tracking broken",
+      "actions": [
+        "fix exit tracking",
+        "review open trades"
+      ]
+    },
+    "gft_1k_instant": {
+      "capital": 982.53,
+      "daily_pnl": 0,
+      "trades_today": 0,
+      "status": "no trades",
+      "actions": [
+        "enable trading",
+        "monitor performance"
+      ]
+    },
+    "gft_5k_2step": {
+      "capital": 4851.32,
+      "pnl": -148.68,
+      "phase": "phase_1",
+      "phase_target": 400,
+      "progress_pct": -37.17,
+      "status": "2 H4 violations",
+      "actions": [
+        "review H4 violations",
+        "adjust trading strategy"
+      ],
+      "h4_violations": 2
+    },
+    "ftmo_10k": {
+      "capital": 9804.91,
+      "pnl": -195.09,
+      "target": 500,
+      "deadline": "June 6",
+      "status": "urgent",
+      "actions": [
+        "increase trading activity",
+        "focus on high-win-rate symbols"
+      ]
+    }
+  },
+  "symbols_to_disable": [
+    "GBPUSD"
+  ],
+  "symbols_to_prioritize": [
+    "XAGUSD",
+    "XAUUSD"
+  ],
+  "session_recommendations": [
+    "London",
+    "NY"
+  ],
+  "h4_violations_found": [
+    "USOIL BULLISH entry with H4=BEARISH on 2026-05-25 12:45:12",
+    "XAGUSD BULLISH entry with H4=BEARISH on 2026-05-26 16:45:12",
+    "XAGUSD BEARISH entry with H4=BULLISH on 2026-06-01 13:15:08",
+    "XAUUSD BULLISH entry with H4=BEARISH on 2026-06-03 17:00:02",
+    "USOIL BULLISH entry with H4=BEARISH on 2026-06-05 00:45:15",
+    "USOIL BULLISH entry with H4=BEARISH on 2026-05-25 14:00:14",
+    "XAGUSD BEARISH entry with H4=BULLISH on 2026-06-01 13:15:10"
+  ],
+  "ml_retrain_needed": true,
+  "ml_retrain_reason": "new data available",
+  "specific_actions": [
+    "disable GBPUSD",
+    "prioritize XAGUSD and XAUUSD",
+    "focus on London and NY sessions"
+  ],
+  "alerts": [
+    "FTMO $10K deadline approaching",
+    "GFT $5K 2-Step H4 violations"
+  ],
+  "key_insights": [
+    "XAGUSD has 80% win rate and 1.81 avg R:R",
+    "XAUUSD has 83.7% win rate but is disabled on GFT"
+  ],
+  "ml_metrics": {
+    "cnn_nse": {
+      "trained_at": "20260527_1120",
+      "test_acc": 0.7584,
+      "test_prec": 0.9048,
+      "val_loss": 0.555972
+    },
+    "dnn_nse": {
+      "trained_at": "20260527_1120",
+      "test_acc": 0.7383,
+      "test_prec": 0.9184,
+      "val_loss": 0.57245
+    },
+    "rnn_nse": {
+      "trained_at": "20260527_1120",
+      "test_acc": 0.8,
+      "test_prec": null,
+      "val_loss": 0.821857
+    }
+  },
+  "raw_data": {
+    "forex_journal": {
+      "total_trades": 199,
+      "win_rate": 0.6784,
+      "by_symbol": {
+        "EURUSD": {
+          "count": 15,
+          "win_rate": 0.4667
+        },
+        "GBPUSD": {
+          "count": 21,
+          "win_rate": 0.3333
+        },
+        "USOIL": {
+          "count": 65,
+          "win_rate": 0.6308
+        },
+        "XAGUSD": {
+          "count": 55,
+          "win_rate": 0.8
+        },
+        "XAUUSD": {
+          "count": 43,
+          "win_rate": 0.8372
+        }
+      },
+      "by_session": {
+        "London": {
+          "count": 91,
+          "win_rate": 0.7692
+        },
+        "London_NY_Overlap": {
+          "count": 23,
+          "win_rate": 0.4783
+        },
+        "NY": {
+          "count": 85,
+          "win_rate": 0.6353
+        }
+      },
+      "by_direction": {
+        "EURUSD_BEARISH": {
+          "count": 6,
+          "win_rate": 0.3333
+        },
+        "EURUSD_BULLISH": {
+          "count": 9,
+          "win_rate": 0.5556
+        },
+        "GBPUSD_BEARISH": {
+          "count": 10,
+          "win_rate": 0.3
+        },
+        "GBPUSD_BULLISH": {
+          "count": 11,
+          "win_rate": 0.3636
+        },
+        "USOIL_BEARISH": {
+          "count": 31,
+          "win_rate": 0.7097
+        },
+        "USOIL_BULLISH": {
+          "count": 34,
+          "win_rate": 0.5588
+        },
+        "XAGUSD_BEARISH": {
+          "count": 34,
+          "win_rate": 0.8824
+        },
+        "XAGUSD_BULLISH": {
+          "count": 21,
+          "win_rate": 0.6667
+        },
+        "XAUUSD_BEARISH": {
+          "count": 27,
+          "win_rate": 0.8889
+        },
+        "XAUUSD_BULLISH": {
+          "count": 16,
+          "win_rate": 0.75
+        }
+      },
+      "avg_rr": {
+        "EURUSD": 0.778,
+        "GBPUSD": 0.157,
+        "USOIL": 1.291,
+        "XAGUSD": 1.808,
+        "XAUUSD": 1.895
+      }
+    },
+    "nse_journal": {
+      "total_entries": 39,
+      "open_trades": 38,
+      "closed_trades": 1,
+      "by_symbol": {
+        "NSE:BANKNIFTY26MAYFUT": {
+          "count": 2,
+          "open": 2
+        },
+        "NSE:FINNIFTY26MAYFUT": {
+          "count": 7,
+          "open": 7
+        },
+        "NSE:MIDCPNIFTY26MAYFUT": {
+          "count": 14,
+          "open": 14
+        },
+        "NSE:NIFTY26MAYFUT": {
+          "count": 15,
+          "open": 15
+        },
+        "NSE:NIFTY50-INDEX": {
+          "count": 1,
+          "open": 0
+        }
+      },
+      "columns": [
+        "date",
+        "entry_time",
+        "exit_time",
+        "symbol",
+        "underlying",
+        "direction",
+        "window",
+        "score",
+        "strike",
+        "expiry",
+        "delta",
+        "iv",
+        "theta",
+        "gamma",
+        "vega",
+        "ltp_at_entry",
+        "entry_price",
+        "stop_loss",
+        "target1",
+        "target2",
+        "target3",
+        "exit_price",
+        "exit_reason",
+        "lots",
+        "lot_size",
+        "qty",
+        "realized_pnl",
+        "mins_in_fvg",
+        "theta_burn",
+        "displacement",
+        "in_fvg"
+      ],
+      "note": "NSE journal has exits missing \u2014 exit tracking may be broken"
+    },
+    "nse_memory": {
+      "total_trades": 0,
+      "winning": 0,
+      "losing": 0,
+      "trade_history_count": 0
+    }
+  }
+}

@@ -386,11 +386,20 @@ class MT5Connector:
             }
             result = mt5.order_send(request)
             if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                fill_price = result.price
+                if not fill_price:
+                    # MT5 sometimes returns 0 in result.price for market orders —
+                    # fetch the actual open price from the live position
+                    pos = mt5.positions_get(ticket=result.order)
+                    if pos:
+                        fill_price = pos[0].price_open
+                    else:
+                        fill_price = price  # tick ask/bid captured just before send
                 logger.info(
                     f"MT5 order filled: {symbol} {direction} {lots}L "
-                    f"ticket={result.order} price={result.price}"
+                    f"ticket={result.order} price={fill_price}"
                 )
-                return {'ticket': result.order, 'price': result.price,
+                return {'ticket': result.order, 'price': fill_price,
                         'symbol': symbol, 'direction': direction, 'lots': lots}
             else:
                 err = result.comment if result else 'no result'
@@ -398,6 +407,107 @@ class MT5Connector:
                 return None
         except Exception as e:
             logger.error(f"MT5 place_market_order ({symbol}): {e}")
+            return None
+
+    def place_limit_order(self, symbol: str, direction: str, lots: float,
+                          entry: float, sl: float, tp: float = 0.0,
+                          magic: int = 62002,
+                          expiry: 'datetime' = None) -> Optional[dict]:
+        """
+        Place a pending limit order that fills when price retraces to `entry`.
+        MT5 auto-cancels at `expiry` (UTC datetime) if not filled.
+        Returns {'ticket', 'price', 'order_type': 'LIMIT'} or None.
+        """
+        if self._paper:
+            logger.info(f"[PAPER] LIMIT {symbol} {direction} {lots}L @ {entry:.5f}")
+            return {'ticket': 0, 'paper': True, 'price': entry,
+                    'order_type': 'LIMIT', 'symbol': symbol,
+                    'direction': direction, 'lots': lots}
+
+        if not _MT5_AVAILABLE or not self.ensure_connected():
+            return None
+
+        from forex_engine.forex_instruments import INSTRUMENTS
+        try:
+            cfg     = INSTRUMENTS.get(symbol, {})
+            mt5_sym = self._resolve_sym(cfg.get('mt5_symbol', symbol))
+            mt5.symbol_select(mt5_sym, True)
+
+            is_long    = direction in ('BUY', 'BULLISH')
+            order_type = mt5.ORDER_TYPE_BUY_LIMIT if is_long else mt5.ORDER_TYPE_SELL_LIMIT
+            expiry_ts  = int(expiry.timestamp()) if expiry else 0
+            time_type  = mt5.ORDER_TIME_SPECIFIED if expiry_ts else mt5.ORDER_TIME_GTC
+
+            request = {
+                'action'    : mt5.TRADE_ACTION_PENDING,
+                'symbol'    : mt5_sym,
+                'volume'    : lots,
+                'type'      : order_type,
+                'price'     : entry,
+                'sl'        : sl,
+                'tp'        : tp if tp > 0 else 0.0,
+                'deviation' : 20,
+                'magic'     : magic,
+                'comment'   : 'CB6_Quantum_LMT',
+                'type_time' : time_type,
+                'expiration': expiry_ts,
+            }
+            result = mt5.order_send(request)
+            # Pending orders return TRADE_RETCODE_PLACED (10008), not DONE (10009)
+            if result and result.retcode in (mt5.TRADE_RETCODE_PLACED,
+                                             mt5.TRADE_RETCODE_DONE):
+                logger.info(
+                    f"MT5 limit placed: {symbol} {direction} {lots}L "
+                    f"@ {entry:.5f} ticket={result.order}"
+                )
+                return {'ticket': result.order, 'price': entry,
+                        'order_type': 'LIMIT', 'symbol': symbol,
+                        'direction': direction, 'lots': lots}
+            err = result.comment if result else 'no result'
+            logger.error(
+                f"MT5 limit failed: {symbol} {direction} — "
+                f"{err} (retcode={result.retcode if result else 'N/A'})"
+            )
+            return None
+        except Exception as e:
+            logger.error(f"MT5 place_limit_order ({symbol}): {e}")
+            return None
+
+    def cancel_order(self, ticket: int) -> bool:
+        """Cancel a pending MT5 order by its order ticket."""
+        if self._paper:
+            return True
+        if not _MT5_AVAILABLE:
+            return False
+        try:
+            result = mt5.order_send({'action': mt5.TRADE_ACTION_REMOVE, 'order': ticket})
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                logger.info(f"MT5 order cancelled: ticket={ticket}")
+                return True
+            logger.error(
+                f"MT5 cancel failed: ticket={ticket} — "
+                f"{result.comment if result else 'no result'}"
+            )
+            return False
+        except Exception as e:
+            logger.error(f"MT5 cancel_order ({ticket}): {e}")
+            return False
+
+    def get_pending_order(self, ticket: int) -> Optional[dict]:
+        """Return pending order info if it still exists, or None if filled/expired."""
+        if self._paper:
+            return None
+        if not _MT5_AVAILABLE:
+            return None
+        try:
+            orders = mt5.orders_get(ticket=ticket)
+            if orders:
+                o = orders[0]
+                return {'ticket': o.ticket, 'price_open': o.price_open,
+                        'type': o.type, 'volume': o.volume_current}
+            return None
+        except Exception as e:
+            logger.error(f"MT5 get_pending_order ({ticket}): {e}")
             return None
 
     def close_position(self, symbol: str, ticket: int, lots: float,
@@ -481,7 +591,16 @@ class MT5Connector:
     # ── REST candle polling ────────────────────────────────────────────────────
 
     def start_polling(self, symbols: List[str], interval: str,
-                      on_closed_candle: Callable, poll_secs: int = 60):
+                      on_closed_candle: Callable, poll_secs: int = 60,
+                      on_intracandle: Callable = None):
+        """
+        Poll MT5 every poll_secs for new candles.
+
+        on_closed_candle(sym, df): fires when a new candle bar opens (old bar confirmed closed).
+        on_intracandle(sym, df):   fires every poll_secs with the latest df including the
+                                   current FORMING bar — enables 15s intra-candle scanning.
+                                   df[-1] is the live bar with current high/low/close from MT5.
+        """
         self._running = True
 
         def _poll():
@@ -499,10 +618,16 @@ class MT5Connector:
                         latest = df.index[-1]
                         if last_ts[sym] is None:
                             last_ts[sym] = latest
+                            # Still call intracandle on first poll so scanner starts immediately
+                            if on_intracandle:
+                                on_intracandle(sym, df)
                             continue
                         if latest > last_ts[sym]:
                             last_ts[sym] = latest
                             on_closed_candle(sym, df)
+                        # Always fire intracandle — df[-1] has live OHLC from MT5
+                        if on_intracandle:
+                            on_intracandle(sym, df)
                     except Exception as e:
                         logger.error(f"Poll error ({sym}): {e}")
                 time.sleep(poll_secs)

@@ -777,10 +777,19 @@ def process_updates(updates):
         elif text == '/resume':
             try:
                 from trader.paper_trader import load_state, save_state
+                from utils.emergency_stop import clear_emergency_stop
+                # Clear all halt sources: in-memory flag files + paused state
+                clear_emergency_stop()
                 state = load_state()
                 state['paused'] = False
+                state.pop('emergency_close_failed', None)
+                state.pop('halt_reason', None)
                 save_state(state)
-                send_message("CB6 QUANTUM - Scanning resumed. Bot will take new live trades.")
+                send_message(
+                    "CB6 QUANTUM — Scanning <b>RESUMED</b>.\n"
+                    "All halt flags cleared. Bot will take new live trades.",
+                    parse_mode='HTML'
+                )
             except Exception as e:
                 send_message(f"Resume error: {e}")
 
@@ -807,7 +816,7 @@ def process_updates(updates):
         elif text == '/analyze_positions':
             try:
                 from core.manual_position_analyzer import send_analysis_report
-                _fyers = _fyers_ref  # set by set_fyers_ref() in main.py
+                _fyers = fyers_ref  # set by set_fyers_ref() in main.py
                 if not _fyers:
                     send_message("Fyers not initialised — start the bot first.")
                 else:

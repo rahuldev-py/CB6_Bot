@@ -16,6 +16,13 @@ _RATE_LOCK     = threading.Lock()
 _LAST_CALL_TS  = [0.0]
 MIN_INTERVAL   = 0.18   # ~5.5 req/sec — conservative to avoid 429 storms
 
+# ── Consecutive-failure gate for stale alerts ────────────────────────────────
+# A single transient -99 from Fyers should not trigger "ALL DATA SOURCES STALE".
+# Only fire the alert after _STALE_ALERT_THRESHOLD consecutive failures per symbol.
+_FAIL_LOCK              = threading.Lock()
+_CONSECUTIVE_FAILS: dict = {}   # {symbol: int}
+_STALE_ALERT_THRESHOLD  = 3
+
 def _throttle():
     """Block until at least MIN_INTERVAL has passed since the last call."""
     with _RATE_LOCK:
@@ -128,6 +135,17 @@ def _fetch_single_range(fyers, symbol, timeframe, start_date, end_date, max_retr
                 time.sleep(wait)
                 continue
 
+            if response.get('code') == -99:
+                # Fyers -99 "Bad request" is often a transient throttle/session issue.
+                # Retry with backoff rather than giving up immediately.
+                wait = backoff * (2 ** attempt)
+                logger.warning(
+                    f"{symbol}: Fyers -99 transient (attempt {attempt+1}/{max_retries}), "
+                    f"backoff {wait:.1f}s"
+                )
+                time.sleep(wait)
+                continue
+
             logger.error(f"Failed to fetch {symbol}: {response}")
             return None
 
@@ -149,6 +167,8 @@ def _get_historical_data_truedata(symbol, timeframe, days):
     Bar freshness: returned bars must have a recent last-candle timestamp,
     otherwise the 2-min cache could serve stale data during a reconnect window.
     """
+    if os.getenv('TRUEDATA_LIVE_ENABLED', 'false').lower() != 'true':
+        return None
     try:
         # ── Health gate ─────────────────────────────────────────────────────
         from data.data_health import get_monitor as _get_health
@@ -171,8 +191,11 @@ def _get_historical_data_truedata(symbol, timeframe, days):
         if df is None or len(df) <= 20:
             return None
 
-        # ── Bar freshness gate ──────────────────────────────────────────────
-        if not health.is_bar_fresh(df):
+        # ── Bar freshness gate — threshold scales with timeframe ─────────────
+        # A 60-min bar's last close is up to 60 min old during the live candle;
+        # allow timeframe + 15 min before declaring data stale.
+        _tf_threshold = max(int(timeframe) + 15, 20)
+        if not health.is_bar_fresh(df, max_age_mins=_tf_threshold):
             logger.warning(
                 "%s: TrueData bars discarded — last candle too old during market hours",
                 symbol,
@@ -199,10 +222,13 @@ def get_historical_data(fyers, symbol, timeframe, days=30, max_retries=3):
     """
     cached = _cache_get(symbol, timeframe, days)
     if cached is not None:
-        # Validate bar freshness before trusting the cache
+        # Validate bar freshness before trusting the cache.
+        # Threshold = timeframe + 15 min: a 60-min bar's last close can be
+        # up to 60 min old while the current bar is still building.
+        _tf_thresh = max(int(timeframe) + 15, 20)
         try:
             from data.data_health import get_monitor as _get_health
-            if not _get_health().is_bar_fresh(cached):
+            if not _get_health().is_bar_fresh(cached, max_age_mins=_tf_thresh):
                 logger.debug(
                     "%s: cached bars stale — discarding and re-fetching", symbol
                 )
@@ -256,18 +282,69 @@ def get_historical_data(fyers, symbol, timeframe, days=30, max_retries=3):
     # Single fetch (within limit)
     df = _fetch_single_range(fyers, symbol, timeframe, start_date, end_date, max_retries)
     if df is None:
-        # Both TrueData and Fyers failed — fire a one-time alert during market hours
-        try:
-            from data.data_health import get_monitor as _get_health, _is_market_hours
-            if _is_market_hours():
-                _get_health().send_both_stale_alert()
-        except Exception:
-            pass
+        # Track consecutive failures; only fire stale alert after _STALE_ALERT_THRESHOLD
+        # consecutive failures for this symbol — one transient -99 must not block the window.
+        with _FAIL_LOCK:
+            _CONSECUTIVE_FAILS[symbol] = _CONSECUTIVE_FAILS.get(symbol, 0) + 1
+            consec = _CONSECUTIVE_FAILS[symbol]
+        if consec >= _STALE_ALERT_THRESHOLD:
+            logger.error(
+                f"{symbol}: {consec} consecutive fetch failures — raising stale alert"
+            )
+            try:
+                from data.data_health import get_monitor as _get_health, _is_market_hours
+                if _is_market_hours():
+                    _get_health().send_both_stale_alert()
+            except Exception:
+                pass
+        else:
+            logger.warning(
+                f"{symbol}: fetch failed ({consec}/{_STALE_ALERT_THRESHOLD} "
+                f"before stale alert fires) — scanner continues on other symbols"
+            )
         return None
     df = df.sort_values('timestamp').reset_index(drop=True)
     logger.info(f"Fetched {len(df)} candles for {symbol} ({timeframe}min)")
     _cache_put(symbol, timeframe, days, df)
+    # Reset consecutive failure counter on success
+    with _FAIL_LOCK:
+        _CONSECUTIVE_FAILS.pop(symbol, None)
     return df
+
+
+def inject_live_tick(df, symbol: str):
+    """
+    Patch the last bar of df with the most recent real-time LTP from the tick cache.
+
+    Scanning every 15s on 3-min bars means the last bar may be up to 3 min old.
+    Injecting the live tick into last-bar close/high/low gives the scanner a
+    price that is at most ~1 tick old (< 1 second) instead of < 3 minutes old.
+
+    The original df is NOT mutated — a shallow copy of the last row is modified.
+    The tick cache is non-blocking; if no tick exists the df is returned unchanged.
+    """
+    if df is None or len(df) == 0:
+        return df
+    try:
+        from scanner.websocket_feed import get_latest_tick
+        tick = get_latest_tick(symbol)
+        if not tick or 'ltp' not in tick:
+            # Try TrueData symbol format (NSE:SYMBOL → SYMBOL-I)
+            td_sym = symbol.split(':')[-1].replace('26JUNFUT', '-I').replace('FUT', '-I')
+            tick   = get_latest_tick(td_sym)
+        if not tick or 'ltp' not in tick:
+            return df
+        ltp = float(tick['ltp'])
+        if ltp <= 0:
+            return df
+        df = df.copy()
+        last = df.index[-1]
+        df.loc[last, 'close'] = ltp
+        df.loc[last, 'high']  = max(float(df.loc[last, 'high']), ltp)
+        df.loc[last, 'low']   = min(float(df.loc[last, 'low']),  ltp)
+        return df
+    except Exception:
+        return df
 
 
 def get_all_data(fyers, symbols, timeframe, days=30):

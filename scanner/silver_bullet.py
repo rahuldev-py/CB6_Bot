@@ -184,19 +184,41 @@ def _target_multipliers(dte: int, regime: str) -> tuple:
     return _TARGET_MULTS.get((bucket, regime), (2.0, 3.0, 4.0))
 
 
-def premium_discount_context(df, price: float, lookback: int = 60,
+def premium_discount_context(df, price: float, lookback: int = 20,
                              equilibrium_buffer: float = 0.05) -> Dict:
     """
     Classify price inside the active recent range.
     BULLISH entries should form in discount; BEARISH entries in premium.
+
+    Uses today's session bars if available (NSE 09:15 anchor), otherwise
+    falls back to last `lookback` bars. lookback=20 (was 60) avoids
+    pre-selloff highs contaminating the equilibrium calculation.
     """
     try:
-        recent = df.tail(lookback)
+        # Prefer today's session range — avoids capturing pre-selloff highs
+        # from earlier in the day which inflate the equilibrium midpoint.
+        recent = None
+        try:
+            import pandas as pd
+            idx = df.index
+            if hasattr(idx, 'date'):
+                today = pd.Timestamp.now().date()
+                idx_dates = pd.Series(
+                    [x.date() if hasattr(x, 'date') else None for x in idx],
+                    index=df.index,
+                )
+                session = df[idx_dates == today]
+                if len(session) >= 5:
+                    recent = session
+        except Exception:
+            pass
+        if recent is None or recent.empty:
+            recent = df.tail(lookback)
         if recent.empty:
             return {'zone': 'UNKNOWN', 'aligned': True}
 
         high = float(recent['high'].max())
-        low = float(recent['low'].min())
+        low  = float(recent['low'].min())
         width = high - low
         if width <= 0:
             return {'zone': 'UNKNOWN', 'aligned': True}
@@ -225,12 +247,14 @@ def premium_discount_context(df, price: float, lookback: int = 60,
 
 def premium_discount_aligned(direction: str, context: Dict) -> bool:
     zone = context.get('zone', 'UNKNOWN')
-    if zone == 'UNKNOWN':
+    # UNKNOWN and EQUILIBRIUM are both valid — only block if price is on the
+    # wrong side (PREMIUM for a LONG, DISCOUNT for a SHORT).
+    if zone in ('UNKNOWN', 'EQUILIBRIUM'):
         return True
     if direction == 'BULLISH':
-        return zone == 'DISCOUNT'
+        return zone in ('DISCOUNT', 'EQUILIBRIUM')
     if direction == 'BEARISH':
-        return zone == 'PREMIUM'
+        return zone in ('PREMIUM', 'EQUILIBRIUM')
     return False
 
 
@@ -737,15 +761,19 @@ def detect_eqh_eql(df, lookback: int = 100, tolerance: float = 0.0005,
                 level      = sum(p[0] for p in grp) / len(grp)
                 latest_idx = max(p[1] for p in grp)
                 c_ago      = n - 1 - latest_idx
-                future     = recent['close'].iloc[latest_idx + 1:]
                 if is_high:
-                    if any(future > level * 1.0005):
-                        return          # already swept
+                    # EQH swept = any subsequent wick (high) pierced above level.
+                    # Judas swings are wick-based — close never exceeds the level.
+                    future_h = recent['high'].iloc[latest_idx + 1:]
+                    if any(future_h > level * 1.0005):
+                        return          # already swept (wick counts)
                     if level <= last_close:
                         return          # below price — not above
                 else:
-                    if any(future < level * 0.9995):
-                        return          # already swept
+                    # EQL swept = any subsequent wick (low) pierced below level.
+                    future_l = recent['low'].iloc[latest_idx + 1:]
+                    if any(future_l < level * 0.9995):
+                        return          # already swept (wick counts)
                     if level >= last_close:
                         return          # above price — not below
                 clusters.append({
@@ -1537,37 +1565,47 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
                 )
                 return None
 
-        # 6b. H1 bias filter — block counter-trend 5m entries (same as forex engine)
-        #     CHoCH overrides when it confirms a true structure shift.
-        #     RANGING → allow trade but raise score gate by +1 (handled in scoring).
+        # 6b. H1 bias filter — 3-wave exception applies.
+        #     Counter-H1 allowed when wave_count≥3 + score≥11 + sweep confirmed
+        #     (same rule as Forex engine). Pure random counter-trend still blocked.
         h1_bias = 'RANGING'
         if fyers is not None:
             h1_bias = _get_nse_h1_bias(fyers, symbol)
-        h1_ranging      = (h1_bias == 'RANGING')
-        choch_h1_override = (mss_type == 'CHOCH')
-        if not h1_ranging and h1_bias != direction and not choch_h1_override:
-            logger.info(
-                f"SB skip {symbol}: H1 {h1_bias} ≠ {direction} — counter-trend block"
-            )
-            return None
-        if choch_h1_override and h1_bias != direction and not h1_ranging:
-            logger.info(
-                f"SB {symbol}: CHoCH overrides H1 {h1_bias} — structure already shifted"
-            )
+        h1_ranging = (h1_bias == 'RANGING')
+        if not h1_ranging and h1_bias != direction:
+            try:
+                from forex_engine.scanner.mtf_dol_scanner import count_impulse_waves as _ciw
+            except Exception:
+                _ciw = None
+            _fade_dir_h1  = 'BEARISH' if direction == 'BULLISH' else 'BULLISH'
+            _wc_h1        = _ciw(df, _fade_dir_h1, lookback=80) if _ciw else 0
+            _sweep_ok_h1  = liq_sweep is not None and liq_sweep.get('candles_ago', 99) <= 15
+            _is_3wave_nse = _wc_h1 >= 3 and _sweep_ok_h1
+            if _is_3wave_nse:
+                logger.info(
+                    f"SB {symbol}: 3-WAVE REVERSAL — counter-H1 allowed "
+                    f"(wave={_wc_h1} H1={h1_bias}) HALF SIZE T1-only"
+                )
+                setup_flags = {'size_multiplier': 0.5, 't1_only': True, 'reversal_3wave': True,
+                               'wave_count': _wc_h1}
+            else:
+                logger.info(
+                    f"SB skip {symbol}: H1 {h1_bias} ≠ {direction} — "
+                    f"counter-trend blocked (wave={_wc_h1}, need ≥3 + sweep)"
+                )
+                return None
+        else:
+            setup_flags = {}
 
-        # 6c. H4 bias filter — hard gate, no CHoCH override.
-        #     H4 is the primary trend; counter-trend H4 = no trade regardless of setup quality.
-        #     RANGING → allow both directions but raise score gate by +1 (handled in scoring).
+        # 6c. H4 bias — informational only, used for TP targeting and scoring.
+        #     Removed as direction gate: Jun 1-5 analysis showed H4 blocked only
+        #     valid 3-wave exhaustion setups, never bad trades.
         h4_bias    = 'RANGING'
         h4_ranging = True
         if fyers is not None:
             h4_bias    = _get_nse_h4_bias(fyers, symbol)
             h4_ranging = (h4_bias == 'RANGING')
-            if not h4_ranging and h4_bias != direction:
-                logger.info(
-                    f"SB skip {symbol}: H4 {h4_bias} != {direction} — counter-trend hard block"
-                )
-                return None
+            logger.info(f"SB {symbol}: H4 context {h4_bias} (informational — not a gate)")
 
         # 7. Build trade plan — SL covers the full FVG size (matches backtest logic)
         #    min 2pts so micro-gaps don't produce untradeable risk
@@ -1624,6 +1662,33 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
         m1, m2, m3 = _target_multipliers(dte, regime)
         logger.info(f"SB {symbol}: DTE={dte} regime={regime} → target mults {m1}/{m2}/{m3}")
 
+        # ── BANKNIFTY macro T3 extension (RBI pivot + recovery phase) ─────────
+        # 20-year data: BANKNIFTY +101–211% after RBI easing/pivot events vs NIFTY.
+        # In pivot+weak-bear: take 50% at T2, let remaining 50% ride with trailing SL.
+        _macro_t3_boost = 1.0
+        _macro_trailing = False
+        _sym_clean = (symbol or '').upper().replace('NSE:', '').replace('-INDEX', '')
+        if 'BANKNIFTY' in _sym_clean and direction == 'BULLISH':
+            try:
+                from utils.nse_regime import get_regime_for_symbol
+                from utils.nse_event_overlay import get_active_events
+                _macro = get_regime_for_symbol(symbol)
+                _ev    = get_active_events()
+                _stance = str(_ev.get('rbi_stance', 'unknown')).lower()
+                _20yr_regime = _macro.get('regime', 'UNKNOWN')
+                if _stance in ('pivot', 'easing', 'ultra_accommodative') and \
+                   _20yr_regime in ('WEAK_BEAR', 'SIDEWAYS', 'WEAK_BULL', 'STRONG_BULL'):
+                    _macro_t3_boost = 1.5
+                    _macro_trailing = True
+                    logger.info(
+                        "SB %s: BANKNIFTY macro T3 boost ×1.5 "
+                        "(rbi=%s regime=%s — pivot+recovery asymmetry)",
+                        symbol, _stance, _20yr_regime,
+                    )
+            except Exception:
+                pass
+        m3 = round(m3 * _macro_t3_boost, 2)
+
         # ── Order Block detection (before entry — used to refine entry/SL) ────
         # Reference: NIFTY LONG May 19 2026
         #   FVG entry (mid): 23,606  SL: 23,355  risk: ~250 pts  TP3 R: ~0.9R
@@ -1637,31 +1702,29 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
             ob_in_fvg     = not (ob['ob_high'] < fvg_low or ob['ob_low'] > fvg_high)
             ob_confluence = True
 
-        # ── Entry + SL — data-driven FVG zone logic ──────────────────────────
-        # 838-trade NSE backtest finding:
-        #   Approach (pre-touch) : WR 75.8%, AvgR +3.09 → entry = FVG edge (limit)
-        #   In-FVG 0-50% fill    : WR ~86%             → entry = last_close (best)
-        #   In-FVG 50-75% fill   : WR ~79%             → entry = last_close (OK)
-        #   In-FVG 75-100% fill  : WR lower            → score penalty already applied
+        # ── Entry + SL ────────────────────────────────────────────────────────
+        # Entry: FVG-zone based (838-trade backtest confirms edge):
+        #   Approach (pre-touch) : WR 75.8%, AvgR +3.09 → limit at FVG edge
+        #   In-FVG 0-50% fill    : WR ~86%             → market at last_close
+        #   In-FVG 50-75% fill   : WR ~79%             → market at last_close
         #
-        # SL always just outside the FVG (not 2× FVG away — old formula was too wide).
-        # Risk = entry distance to SL; targets scaled from actual entry price.
+        # SL: sweep wick extreme + 12pt buffer (midpoint of 10-15pt rule).
+        # Lesson May 26: FVG-edge SL (24,085) stopped out before move.
+        # Sweep wick was 24,089.80 → correct SL = 24,102. Use wick, not FVG edge.
 
-        _buf = _fvg_buffer(symbol)
+        _buf          = _fvg_buffer(symbol)
+        _SL_BUFFER    = 12   # pts — midpoint of 10-15pt rule
 
-        # FVG fill depth at current price (0% = just touched edge, 100% = fully filled)
         if direction == 'BULLISH':
             if _approach_entry:
-                # Limit order at FVG top edge — best price, pre-touch
                 entry = round(fvg_high - _buf, 2)
             else:
-                # Market order at current price (already inside FVG)
                 entry = last_close
-            stop_loss = round(fvg_low - _buf, 2)      # just below FVG bottom
+            # SL = sweep wick extreme - 12pt (wick_extreme is the lowest point of sweep)
+            stop_loss = round(liq_sweep['wick_extreme'] - _SL_BUFFER, 2)
             risk = round(entry - stop_loss, 2)
             if risk <= 0:
                 return None
-            # Fill depth: how far from top edge (0% = touched top, 100% = fully filled)
             _fill_pct = ((fvg_high - entry) / fvg_size_pts * 100) if fvg_size_pts > 0 else 50
             target1  = round(entry + risk * m1, 2)
             target2  = round(entry + risk * m2, 2)
@@ -1671,11 +1734,11 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
             rr       = round((target2 - entry) / risk, 1)
         else:
             if _approach_entry:
-                # Limit order at FVG bottom edge — best price, pre-touch
                 entry = round(fvg_low + _buf, 2)
             else:
                 entry = last_close
-            stop_loss = round(fvg_high + _buf, 2)     # just above FVG top
+            # SL = sweep wick extreme + 12pt (wick_extreme is the highest point of sweep)
+            stop_loss = round(liq_sweep['wick_extreme'] + _SL_BUFFER, 2)
             risk = round(stop_loss - entry, 2)
             if risk <= 0:
                 return None
@@ -1857,6 +1920,22 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
             score += 1   # Three Bar Reversal = confirmed turn at FVG
         if double_ob:
             score += 1   # Same OB/supply zone rejected before — double confirmation
+
+        # OB accumulation duration bonus — validated pattern 2026-06-05 NIFTY.
+        # Time between sweep candle and MSS candle = how long smart money was loading.
+        # ≥45min (15 x 3min bars): strong institutional OB → +1
+        # ≥90min (30 x 3min bars): institutional patience OB → +2
+        _sweep_ca_nse  = liq_sweep.get('candles_ago', 0) if liq_sweep else 0
+        _mss_ca_nse    = mss.get('candles_ago', 0)
+        _ob_dur_candles = max(0, _sweep_ca_nse - _mss_ca_nse)
+        ob_duration_mins = _ob_dur_candles * 3  # NSE scanner uses 3-min bars
+        if ob_duration_mins >= 90:
+            score += 2
+            logger.debug(f"SB {symbol}: institutional OB duration {ob_duration_mins}min — score+2")
+        elif ob_duration_mins >= 45:
+            score += 1
+            logger.debug(f"SB {symbol}: strong OB duration {ob_duration_mins}min — score+1")
+
         if gap_bias and gap_bias == direction:
             score += 1   # opening gap bias confirms trade direction
         if pm_reversal and pm_reversal_dir == direction:
@@ -1935,6 +2014,21 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
                 f"entry@{entry:.1f} (limit at FVG edge)"
             )
 
+        # ── 20-year regime adjustment ─────────────────────────────────────────
+        # Regime-aligned setups get +1; opposing setups get -1.
+        # Only applied if historical CSV data is loaded; gracefully skipped if not.
+        _regime_adj = 0
+        try:
+            from utils.nse_regime import regime_score_adjustment_for_symbol
+            _regime_adj = regime_score_adjustment_for_symbol(direction, symbol)
+            if _regime_adj != 0:
+                score += _regime_adj
+                logger.debug(
+                    "SB %s: 20yr regime adj %+d (direction=%s)", symbol, _regime_adj, direction
+                )
+        except Exception:
+            pass
+
         setup = {
             'symbol'          : symbol,
             'direction'       : direction,
@@ -1960,6 +2054,7 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
             'ut_bot'          : ut,
             'ob'              : ob,
             'ob_confluence'   : ob_confluence,
+            'ob_duration_mins': ob_duration_mins,
             'ob_in_fvg'       : ob_in_fvg,
             'three_bar'       : three_bar,
             'double_ob_test'  : double_ob,
@@ -1977,6 +2072,7 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
             'setup_type'      : 'SILVER_BULLET',
             'dte'             : dte,
             'regime'          : regime,
+            'macro_t3_trailing': _macro_trailing,
             'entry_signal': {
                 'entry'    : entry,
                 'stop_loss': stop_loss,
@@ -2010,6 +2106,28 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
             setup = enrich_setup_with_options_context(setup)
         except Exception as _oe:
             logger.debug(f"Options context enrichment skipped: {_oe}")
+
+        # ── 3-wave + base enrichment (Rahul's rule: 3 waves + base + CHoCH) ──
+        try:
+            from forex_engine.scanner.mtf_dol_scanner import (
+                count_impulse_waves, detect_wave_base,
+            )
+            _fade_dir   = 'BEARISH' if direction == 'BULLISH' else 'BULLISH'
+            _wave_count = count_impulse_waves(df, _fade_dir, lookback=80)
+            _wave_base  = detect_wave_base(df, _fade_dir, lookback=8)
+            setup['wave_count']   = _wave_count
+            setup['base_formed']  = _wave_base['base_formed']
+            setup['base_pct_atr'] = _wave_base['base_pct_atr']
+            if _wave_count >= 3:
+                logger.info(
+                    f"NSE {symbol}: 3-wave count={_wave_count} "
+                    f"base={'YES' if _wave_base['base_formed'] else 'NO'} "
+                    f"({_wave_base['base_pct_atr']:.2f}×ATR)"
+                )
+        except Exception:
+            setup['wave_count']  = 0
+            setup['base_formed'] = False
+            setup['base_pct_atr'] = 999.0
 
         # Telemetry: record that a valid setup was produced for this symbol.
         try:
@@ -2151,8 +2269,8 @@ def format_sb_alert(setup: Dict, tf: str = '5') -> str:
     ob_ref_line = ''
     if setup.get('ob_confluence') and setup.get('ob_in_fvg') and ob:
         ob_e = ob['ob_high'] if setup['direction'] == 'BULLISH' else ob['ob_low']
-        ob_s = round(ob['ob_low'] - _fvg_buffer(symbol), 2) if setup['direction'] == 'BULLISH' \
-               else round(ob['ob_high'] + _fvg_buffer(symbol), 2)
+        ob_s = round(ob['ob_low'] - _fvg_buffer(sym), 2) if setup['direction'] == 'BULLISH' \
+               else round(ob['ob_high'] + _fvg_buffer(sym), 2)
         ob_r = round(abs(ob_e - ob_s), 2)
         ob_ref_line = (
             f"\n⚡ OB PRECISION ENTRY (manual):\n"

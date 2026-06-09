@@ -137,7 +137,11 @@ def log_exit(journal_id: str, exit_price: float, exit_reason: str,
     Marks theta_burn=YES if mins_in_fvg > 20 with no target hit.
     """
     path = _ensure_file()
-    entry_time = journal_id[:19].replace('T', ' ').split('.')[0]  # YYYY-MM-DD HH:MM:SS
+    # journal_id is a full ISO datetime (2026-05-19T10:09:23.456789)
+    # The CSV stores date and entry_time as separate columns (date=YYYY-MM-DD, entry_time=HH:MM:SS)
+    # Match on BOTH to avoid false positives across days with identical timestamps
+    entry_date     = journal_id[:10]       # YYYY-MM-DD
+    entry_time_hms = journal_id[11:19]     # HH:MM:SS
 
     theta_burn = 'YES' if (mins_in_fvg > 20 and
                             exit_reason not in ('TARGET1', 'TARGET2', 'TARGET3')) else 'NO'
@@ -148,7 +152,9 @@ def log_exit(journal_id: str, exit_price: float, exit_reason: str,
     with open(path, 'r', newline='', encoding='utf-8') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            if not updated and row['entry_time'] == entry_time:
+            if (not updated
+                    and row.get('date', '') == entry_date
+                    and row['entry_time'] == entry_time_hms):
                 row['exit_time']   = datetime.now().strftime('%H:%M:%S')
                 row['exit_price']  = exit_price
                 row['exit_reason'] = exit_reason
@@ -169,7 +175,7 @@ def log_exit(journal_id: str, exit_price: float, exit_reason: str,
         from utils.trade_enrichment import enrich_exit
         # Find matching enriched record by entry_time prefix
         enrich_exit(
-            record_id=entry_time,   # record_id contains the timestamp
+            record_id=journal_id,   # journal_id contains the full timestamp
             exit_data={
                 'exit_time'       : datetime.now().isoformat(),
                 'exit_price'      : exit_price,

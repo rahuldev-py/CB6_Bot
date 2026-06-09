@@ -26,6 +26,7 @@ from ml_engine.features.risk_features         import add_risk_features,         
 from ml_engine.features.execution_features    import add_execution_features,    EXECUTION_FEATURE_COLS
 from ml_engine.features.news_features         import add_news_features,         NEWS_FEATURE_COLS
 from ml_engine.features.silver_bullet_features import add_silver_bullet_features, SILVER_BULLET_FEATURE_COLS
+from ml_engine.features.macro_regime_features  import add_macro_regime_features,  MACRO_REGIME_FEATURE_COLS
 
 logger = logging.getLogger("cb6.ml.feature_pipeline")
 
@@ -37,7 +38,8 @@ ALL_FEATURE_COLS = (
     RISK_FEATURE_COLS +
     EXECUTION_FEATURE_COLS +
     NEWS_FEATURE_COLS +
-    SILVER_BULLET_FEATURE_COLS
+    SILVER_BULLET_FEATURE_COLS +
+    MACRO_REGIME_FEATURE_COLS      # 20yr macro context — new
 )
 
 # Target columns
@@ -84,6 +86,18 @@ IMPUTE_DEFAULTS = {
     "opt_theta"           : 0.0,
     "opt_iv"              : 0.2,
     "dol_rr_ratio"        : 1.0,
+    # Macro regime defaults (neutral/no-shock baseline)
+    "nifty_regime_ord"     : 0.0,
+    "nifty_sma200_dist_pct": 0.0,
+    "nifty_atr_pct_rank"   : 50.0,
+    "nifty_ret_1y_pct"     : 0.0,
+    "nifty_ret_3m_pct"     : 0.0,
+    "rbi_stance_ord"       : 2.0,
+    "macro_shock_active"   : 0.0,
+    "shock_severity"       : 0.0,
+    "shock_bearish"        : 0.0,
+    "is_black_swan"        : 0.0,
+    "is_election_week"     : 0.0,
 }
 
 
@@ -114,6 +128,9 @@ def run_pipeline(df: pd.DataFrame) -> pd.DataFrame:
 
     df = add_silver_bullet_features(df)
     logger.debug("Silver Bullet features done")
+
+    df = add_macro_regime_features(df)
+    logger.debug("Macro regime features done")
 
     logger.info(f"Feature pipeline complete: {len(df.columns)} total cols")
     return df

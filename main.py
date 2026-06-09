@@ -1246,7 +1246,7 @@ def _process_armed_revalidate_auto_signals():
 
         )
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         armed = list_signals_by_state(SIGNAL_ARMED)
 
@@ -1696,7 +1696,8 @@ def run_silver_bullet_scan():
 
                 continue
 
-
+            from scanner.data_fetcher import inject_live_tick as _inj
+            df = _inj(df, symbol)
 
             setup = scan_silver_bullet(df, symbol, tf='3', fyers=fyers_instance)
 
@@ -1924,11 +1925,20 @@ def run_silver_bullet_scan():
 
 
 
+_sb_scan_running = False   # re-entrancy guard — skip if previous scan still active
+
 def _sb_repeating_scan():
 
-    """Called every 3 min by the repeating scheduler."""
+    """Called every 15s by the repeating scheduler. Skips if previous run still active."""
 
-    run_silver_bullet_scan()
+    global _sb_scan_running
+    if _sb_scan_running:
+        return
+    _sb_scan_running = True
+    try:
+        run_silver_bullet_scan()
+    finally:
+        _sb_scan_running = False
 
 
 
@@ -1956,11 +1966,13 @@ _LIVE_INSTRUMENTS = None   # populated on first call via get_active_futures()
 
 
 
+_live_scan_running = False   # re-entrancy guard — skip if previous scan still active
+
 def _nifty_live_scanner():
 
     """
 
-    Runs every 3 min ALL market hours  -- not gated by SB window.
+    Runs every 60s ALL market hours  -- not gated by SB window.
 
     Scans NIFTY/BANKNIFTY/FINNIFTY/MIDCPNIFTY for the full ICT chain:
 
@@ -1972,6 +1984,18 @@ def _nifty_live_scanner():
 
     """
 
+    global _live_scan_running
+    if _live_scan_running:
+        return
+    _live_scan_running = True
+
+    try:
+      _nifty_live_scanner_inner()
+    finally:
+      _live_scan_running = False
+
+
+def _nifty_live_scanner_inner():
     if _emergency_stop_active():
 
         logger.warning("EMERGENCY_STOP.flag detected - live scanner skipped")
@@ -2052,15 +2076,17 @@ def _nifty_live_scanner():
 
         # Runs every scan cycle before bar fetches so the tick cache is never stale.
 
-        try:
+        if os.getenv('TRUEDATA_LIVE_ENABLED', 'false').lower() == 'true':
 
-            from data.truedata_feed import get_manager as _td_mgr
+            try:
 
-            _td_mgr().forward_fill_midcpnifty()
+                from data.truedata_feed import get_manager as _td_mgr
 
-        except Exception:
+                _td_mgr().forward_fill_midcpnifty()
 
-            pass
+            except Exception:
+
+                pass
 
 
 
@@ -2075,6 +2101,12 @@ def _nifty_live_scanner():
                 if df is None or len(df) < 30:
 
                     continue
+
+                # Inject live tick into last bar — 15s scan cadence means bars
+                # may be up to 3 min old; tick makes last-bar close/high/low current.
+
+                from scanner.data_fetcher import inject_live_tick as _inj
+                df = _inj(df, symbol)
 
 
 
@@ -2723,7 +2755,7 @@ def _nifty_live_scanner():
 
                             f"({routing['reason']}) margin "
 
-                            f"â¹{routing.get('margin_avail') or 0:,.0f}"
+                            f"Rs{routing.get('margin_avail') or 0:,.0f}"
 
                         )
 
@@ -2871,149 +2903,29 @@ def build_morning_watchlist():
 
 def send_eod_report():
 
-    """3:30pm daily: end-of-day summary with live P&L for open positions."""
+    """15:30 IST: comprehensive EOD report — all accounts + ML + Hermes — saved as .txt and sent to both Telegram bots."""
 
     try:
 
-        from trader.paper_trader import load_state
+        from utils.eod_report import generate_and_send
 
-        from scanner.live_price  import get_live_prices
+        fpath = generate_and_send(trigger='NSE_CLOSE')
 
-        state  = load_state()
-
-        cap    = state.get('capital', CAPITAL)
-
-        today  = datetime.now().strftime('%Y-%m-%d')
-
-
-
-        today_closed = [
-
-            t for t in state.get('closed_trades', [])
-
-            if t.get('exit_time', '')[:10] == today
-
-            and t.get('status') != 'EXPIRED_OVERNIGHT'   # don't count phantom overnight closures
-
-        ]
-
-        today_wins = sum(1 for t in today_closed if t.get('pnl', 0) > 0)
-
-        today_pnl  = sum(t.get('pnl', 0) for t in today_closed)
-
-        daily_ret  = round(today_pnl / cap * 100, 2) if cap > 0 else 0
-
-        win_rate   = round(today_wins / max(len(today_closed), 1) * 100, 1)
-
-
-
-        # Fetch live prices for all open trades to get real unrealised P&L
-
-        open_t   = state.get('open_trades', [])
-
-        open_pnl = 0.0
-
-        open_lines = ""
-
-        if open_t:
-
-            symbols   = [t['symbol'] for t in open_t]
-
-            prices    = get_live_prices(fyers_instance, symbols) if fyers_instance else {}
-
-            for t in open_t:
-
-                sym   = t['symbol']
-
-                clean = sym.replace('NSE:', '').replace('-EQ', '')
-
-                ltp   = prices.get(sym) or t.get('entry_price', 0)
-
-                sym_up    = sym.upper()
-
-                is_option = sym_up.endswith('CE') or sym_up.endswith('PE')
-
-                direction = t.get('direction', 'BUY')
-
-                if is_option or direction in ('BUY', 'BULLISH'):
-
-                    tpnl = round((ltp - t['entry_price']) * t['quantity'], 2)
-
-                else:
-
-                    tpnl = round((t['entry_price'] - ltp) * t['quantity'], 2)
-
-                open_pnl += tpnl
-
-                sign = '+' if tpnl >= 0 else ''
-
-                hits = ', '.join(t.get('targets_hit', [])) or '-'
-
-                open_lines += f"  {clean} {t.get('direction','BUY')} | LTP:{ltp} | PnL: Rs {sign}{tpnl:.0f} | Targets: {hits}\n"
-
-
-
-        total_pnl = today_pnl + open_pnl
-
-
-
-        trade_lines = ""
-
-        for t in today_closed:
-
-            sym = t['symbol'].replace('NSE:', '').replace('-EQ', '')
-
-            pnl_val = t.get('pnl', 0)
-
-            res = 'WIN' if pnl_val > 0 else ('BE' if pnl_val == 0 else 'LOSS')
-
-            trade_lines += f"  {sym} {res}  Rs {pnl_val:.0f}\n"
-
-
-
-        open_note = (
-
-            f"{len(open_t)} position(s) still open  -- running to TP/SL.\n{open_lines}"
-
-            if open_t else "All positions closed.\n"
-
-        )
-
-
-
-        send_message(
-
-            "CB6 QUANTUM - END OF DAY REPORT\n\n"
-
-            f"Date         : {datetime.now().strftime('%d %b %Y')}\n"
-
-            f"Capital      : Rs {cap:,.0f}\n\n"
-
-            f"Trades Today : {len(today_closed)}\n"
-
-            f"Wins         : {today_wins}  |  Losses: {len(today_closed) - today_wins}\n"
-
-            f"Win Rate     : {win_rate}%\n"
-
-            f"Realized PnL : Rs {today_pnl:,.0f} ({daily_ret:+.2f}%)\n"
-
-            f"Open PnL     : Rs {open_pnl:+,.0f}  (live)\n"
-
-            f"Total PnL    : Rs {state.get('total_pnl', 0) + open_pnl:+,.0f}\n\n"
-
-            + (f"TODAY'S TRADES:\n{trade_lines}\n" if trade_lines else "No closed trades today.\n\n")
-
-            + open_note
-
-            + "\nNext session: 9:15 AM"
-
-        )
-
-        logger.info("EOD report sent")
+        logger.info(f"EOD report sent: {fpath}")
 
     except Exception as e:
 
         logger.error(f"EOD report error: {e}")
+
+        # Fallback: send a plain alert so Telegram at least notifies
+
+        try:
+
+            send_message(f"CB6 QUANTUM — EOD report failed to generate: {e}\nCheck logs.")
+
+        except Exception:
+
+            pass
 
 
 
@@ -3308,6 +3220,13 @@ def main():
     logger.info(f"IST Time  : {now_ist.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
     logger.info("=" * 45)
+
+    # Backfill NSE trade journal into pattern DB (idempotent)
+    try:
+        from ml_engine.learning.feedback_loop import _backfill_nse_journal
+        _backfill_nse_journal()
+    except Exception as _e:
+        logger.debug(f"Pattern DB NSE backfill skipped: {_e}")
 
 
 
@@ -3747,7 +3666,7 @@ def main():
 
     # Schedule daily events and weekly report
 
-    from utils.scheduler import schedule_repeating
+    from utils.scheduler import schedule_repeating, schedule_repeating_seconds
 
 
 
@@ -3763,17 +3682,16 @@ def main():
 
     schedule_weekly(6, 18, 0, send_weekly_report,    name="weekly_report")
 
-    # Catch mid-window setups (fixes missed May-8 13:55 SELL  -- formed 25 min after window open)
+    # Silver Bullet + live scanner — 60s cadence (bars cached 2 min; tick injected per-scan).
+    # 15s was spawning overlapping threads faster than scans completed → thread pile-up crashes.
 
-    schedule_repeating(3, _sb_repeating_scan,        name="sb_mid_window")
+    schedule_repeating_seconds(15, _sb_repeating_scan,   name="sb_mid_window")
 
-    # Continuous NIFTY live scanner  -- all market hours, no window gate, 3-min cadence
+    schedule_repeating_seconds(15, _nifty_live_scanner,  name="nifty_live")
 
-    schedule_repeating(3, _nifty_live_scanner,       name="nifty_live")
+    # Live P&L + SL/TP monitor — 30s is fine, no pattern detection needed
 
-    # Live P&L + SL/TP monitor  -- updates every 3 min during market hours
-
-    schedule_repeating(3, _trade_monitor,            name="trade_monitor")
+    schedule_repeating_seconds(30, _trade_monitor,       name="trade_monitor")
 
     start_scheduler()
 

@@ -86,6 +86,7 @@ def run_backtest(fyers, symbol, timeframe='15', days=90):
     """
     try:
         from scanner.data_fetcher  import get_historical_data
+        from scanner.silver_bullet import scan_silver_bullet
 
         df = get_historical_data(fyers, symbol, timeframe, days=days)
         if df is None or len(df) < 100:
@@ -98,49 +99,40 @@ def run_backtest(fyers, symbol, timeframe='15', days=90):
         for end_idx in range(min_window, len(df) - 10, step):
             window = df.iloc[:end_idx].copy()
 
-            # BUY scan
-            buy = scan_ict_setup(window, symbol)
-            if buy:
-                sig    = buy['entry_signal']
-                entry  = sig['entry']
-                sl     = sig['stop_loss']
-                t1, t2, t3 = sig['target1'], sig['target2'], sig['target3']
-                risk   = entry - sl
-                if risk > 0 and (t1 - entry) / risk >= 1.5:
-                    outcome = simulate_trade_outcome(
-                        df, end_idx, entry, sl, t1, t2, t3, 'BUY'
-                    )
-                    results.append({
-                        'direction': 'BUY',
-                        'symbol'   : symbol,
-                        'timeframe': timeframe,
-                        'score'    : buy.get('confluence', 0),
-                        'hour'     : df['timestamp'].iloc[end_idx].hour,
-                        'date'     : str(df['timestamp'].iloc[end_idx])[:10],
-                        **outcome
-                    })
+            setup = scan_silver_bullet(window, symbol, tf=timeframe, fyers=fyers)
+            if not setup:
+                continue
 
-            # SELL scan
-            sell = scan_sell_setup(window, symbol)
-            if sell:
-                sig    = sell['entry_signal']
-                entry  = sig['entry']
-                sl     = sig['stop_loss']
-                t1, t2, t3 = sig['target1'], sig['target2'], sig['target3']
-                risk   = sl - entry
-                if risk > 0 and (entry - t1) / risk >= 1.5:
-                    outcome = simulate_trade_outcome(
-                        df, end_idx, entry, sl, t1, t2, t3, 'SELL'
-                    )
-                    results.append({
-                        'direction': 'SELL',
-                        'symbol'   : symbol,
-                        'timeframe': timeframe,
-                        'score'    : sell.get('confluence', 0),
-                        'hour'     : df['timestamp'].iloc[end_idx].hour,
-                        'date'     : str(df['timestamp'].iloc[end_idx])[:10],
-                        **outcome
-                    })
+            sig  = setup.get('entry_signal', {})
+            if not sig:
+                continue
+
+            entry = sig.get('entry')
+            sl    = sig.get('stop_loss')
+            t1    = sig.get('target1')
+            t2    = sig.get('target2')
+            t3    = sig.get('target3')
+            if None in (entry, sl, t1, t2, t3):
+                continue
+
+            is_bull = setup['direction'] == 'BULLISH'
+            direction_label = 'BUY' if is_bull else 'SELL'
+            risk = (entry - sl) if is_bull else (sl - entry)
+            rr_check = (t1 - entry) / risk if is_bull else (entry - t1) / risk
+
+            if risk > 0 and rr_check >= 1.5:
+                outcome = simulate_trade_outcome(
+                    df, end_idx, entry, sl, t1, t2, t3, direction_label
+                )
+                results.append({
+                    'direction': direction_label,
+                    'symbol'   : symbol,
+                    'timeframe': timeframe,
+                    'score'    : setup.get('confluence', 0),
+                    'hour'     : df['timestamp'].iloc[end_idx].hour,
+                    'date'     : str(df['timestamp'].iloc[end_idx])[:10],
+                    **outcome
+                })
 
         if not results:
             return {'symbol': symbol, 'timeframe': timeframe, 'total': 0}

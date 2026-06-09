@@ -43,6 +43,9 @@ def build_setup_dna(payload: Dict[str, Any]) -> SetupDNA:
         bos_quality=_safe_float(payload.get("bos_quality") or payload.get("confluence"), 0.0),
         fvg_bucket=str(fvg.get("bucket") or fvg.get("category") or ("DISPLACED" if fvg.get("displacement") else "PLAIN")),
         htf_bias=str(payload.get("htf_bias") or pd.get("zone") or "UNKNOWN"),
+        wave_count=int(payload.get("wave_count") or 0),
+        base_formed=bool(payload.get("base_formed") or False),
+        base_pct_atr=_safe_float(payload.get("base_pct_atr"), 0.0),
     )
 
 

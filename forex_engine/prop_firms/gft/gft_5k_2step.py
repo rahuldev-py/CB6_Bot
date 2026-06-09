@@ -27,7 +27,7 @@ from forex_engine.prop_firms.gft.gft_risk_rules import get_risk_mode, can_open_t
 from forex_engine.prop_firms.gft.gft_symbol_guard import filter_symbols
 from forex_engine.prop_firms.gft.gft_anti_hft_guard import AntiHFTGuard
 from forex_engine.prop_firms.gft.gft_anti_hedge_guard import check_no_hedge
-from forex_engine.trade.lot_calculator import calc_lot_size, dollar_risk, gft_lot_modifier
+from forex_engine.trade.lot_calculator import calc_lot_size, dollar_risk, gft_lot_modifier, cap_lots_for_account
 from forex_engine.trade.sl_tp_manager import (
     adjust_for_fill, breakeven_trigger_price, mae_exit_price
 )
@@ -103,6 +103,9 @@ def _format_entry_alert(setup: dict, lots: float, risk_usd: float,
     sim_l  = (f"A+ Match   : {sim_ratio:.0%} ⭐ — lots boosted {boost}×\n"
               if sim_ratio >= 0.55 else
               f"A+ Match   : {sim_ratio:.0%}\n" if sim_ratio > 0 else "")
+    _wc    = setup.get('wave_count_tag', 0)
+    wave_l = (f"Wave Count : {_wc} ⭐ EXHAUSTION — tagged for analysis\n"
+              if _wc >= 5 else f"Wave Count : {_wc}\n")
     mode_l = f"Risk Mode  : {risk_mode.upper()}\n" if risk_mode != 'normal' else ""
     tk_l   = f"MT5 Ticket : #{ticket}\n" if ticket else ""
 
@@ -127,6 +130,7 @@ def _format_entry_alert(setup: dict, lots: float, risk_usd: float,
         f"T3 (1/3)   : {sig['target3']}  (DOL)\n"
         f"RR         : 1:{sig['rr_ratio']}\n"
         f"Lots       : {lots}  |  Risk ${risk_usd}\n"
+        f"{wave_l}"
         f"{sim_l}"
         f"{mode_l}"
         f"{tk_l}"
@@ -199,7 +203,7 @@ def _open_trade_state(setup: dict, lots: float, ticket: int = 0) -> Optional[dic
         exp_rrr = round(t2_dist / sl_dist, 2) if sl_dist > 0 else 0.0
 
         trade = {
-            'id'             : str(uuid.uuid4())[:8],
+            'id'             : str(uuid.uuid4()),
             'ticket'         : ticket,
             'symbol'         : setup['symbol'],
             'direction'      : setup['direction'],
@@ -300,6 +304,20 @@ def manual_exit_trade(trade_id: str, exit_price: float):
             state['closed_trades'].append(trade)
             _apply_pnl(state, pnl, trade.get('risk_usd', 0))
             _save(state)
+            try:
+                from utils.hermes_close_adapter import (
+                    is_trade_durably_closed,
+                    notify_hermes_trade_closed,
+                )
+                if is_trade_durably_closed(load_state, trade):
+                    notify_hermes_trade_closed(
+                        trade,
+                        source='gft_5k_manual_close',
+                        account='gft_5k',
+                        market='forex',
+                    )
+            except Exception as _hermes_e:
+                logger.debug(f"Hermes GFT manual close observer skipped: {_hermes_e}")
             return {'type': 'MANUAL', 'trade': trade, 'price': exit_price, 'pnl': pnl}
         return None
 
@@ -451,6 +469,29 @@ def _check_exits(connector, symbol: str) -> list:
 
         if events:
             _save(state)
+            notified_closed = set()
+            for event in events:
+                closed_trade = event.get('trade', {})
+                if closed_trade.get('status') != 'CLOSED':
+                    continue
+                closed_key = closed_trade.get('id') or id(closed_trade)
+                if closed_key in notified_closed:
+                    continue
+                notified_closed.add(closed_key)
+                try:
+                    from utils.hermes_close_adapter import (
+                        is_trade_durably_closed,
+                        notify_hermes_trade_closed,
+                    )
+                    if is_trade_durably_closed(load_state, closed_trade):
+                        notify_hermes_trade_closed(
+                            closed_trade,
+                            source='gft_5k_auto_close',
+                            account='gft_5k',
+                            market='forex',
+                        )
+                except Exception as _hermes_e:
+                    logger.debug(f"Hermes GFT close observer skipped: {_hermes_e}")
         return events
 
 
@@ -494,6 +535,19 @@ class GFT2StepWorker:
             daemon=True, name=f"GFT2_{symbol}"
         ).start()
 
+    def on_intracandle_poll(self, symbol: str, df):
+        """Fires every 15s with live forming bar from MT5 (pos=0 OHLC).
+        Updates candle cache so _scan sees current price; lock prevents concurrent runs."""
+        if not is_kz_active(datetime.now(timezone.utc).hour):
+            return
+        if symbol not in _P['enabled_symbols']:
+            return
+        self._candles[symbol] = df
+        threading.Thread(
+            target=self._scan, args=(symbol,),
+            daemon=True, name=f"GFT2Intra_{symbol}"
+        ).start()
+
     def _scan(self, symbol: str):
         if not self._locks[symbol].acquire(blocking=False):
             return
@@ -526,7 +580,13 @@ class GFT2StepWorker:
         if df is None or len(df) < 40:
             return
 
-        setup = scan_setup(df, symbol, min_rr=2.0)
+        # Pre-fetch H4 bias before scanner so gate is enforced at scan time (belt-and-suspenders)
+        _h4_pre = get_h4_bias(self._connector, symbol)
+        # Re-check KZ: H4 fetch is an MT5 call that can block for minutes; if KZ closed while
+        # waiting, the scan would fire with stale KZ context — abort before calling scan_setup.
+        if not is_kz_active(datetime.now(timezone.utc).hour):
+            return
+        setup = scan_setup(df, symbol, min_rr=2.0, h4_bias=_h4_pre)
         if not setup:
             return
         # Shadow recommendation — fires for ALL scanner-passing setups (before HTF/score rejections)
@@ -558,13 +618,70 @@ class GFT2StepWorker:
         h1_bias = get_h1_bias(self._connector, symbol)
         h4_bias = get_h4_bias(self._connector, symbol)
 
-        choch_ok = mss_type == 'CHOCH' and score >= 11
+        # H4 — 3-wave reversal rule (not a hard gate on direction).
+        # Counter-H4 allowed only when 3 impulse waves complete + base formed + sweep confirmed.
+        # 1st and 2nd pullbacks are traps — only the 3rd pullback is the entry.
+        # base_formed = price has consolidated after the 3rd wave extreme (exhaustion confirmed).
         if h4_bias not in ('RANGING', direction):
-            logger.info(f"GFT 2-Step {symbol}: H4 block — H4={h4_bias} setup={direction} mss={mss_type} score={score}")
-            return
-        if h1_bias not in ('RANGING', direction) and not choch_ok:
-            logger.info(f"GFT 2-Step {symbol}: H1 block — H1={h1_bias} setup={direction}")
-            return
+            _wc_h4   = int(setup.get('wave_count', 0) or 0)
+            _sw_h4   = bool(setup.get('sweep_confirmed', False))
+            _base_h4 = bool(setup.get('base_formed', False))
+            if _wc_h4 >= 3 and _sw_h4 and _base_h4:
+                logger.info(
+                    f"GFT 2-Step {symbol}: counter-H4 ALLOWED — 3-wave reversal + base "
+                    f"wave={_wc_h4} H4={h4_bias} HALF SIZE T1-only"
+                )
+                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                setup['t1_only']         = True
+                setup['reversal_3wave']  = True
+            else:
+                logger.info(
+                    f"GFT 2-Step {symbol}: counter-H4 SKIP — 3-wave gate not met "
+                    f"wave={_wc_h4} sweep={_sw_h4} base={_base_h4} H4={h4_bias} "
+                    f"(need wave≥3 + sweep + base)"
+                )
+                return
+
+        # H1 — 3-wave exception: counter-H1 allowed when wave≥3 + sweep confirmed
+        _wc = int(setup.get('wave_count', 0) or 0)
+        _sw = bool(setup.get('sweep_confirmed', False))
+        if h1_bias not in ('RANGING', direction):
+            if _wc >= 3 and _sw:
+                logger.info(f"GFT 2-Step {symbol}: 3-WAVE counter-H1 allowed wave={_wc} H1={h1_bias} HALF SIZE T1-only")
+                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                setup['t1_only']         = True
+                setup['reversal_3wave']  = True
+            else:
+                logger.info(f"GFT 2-Step {symbol}: H1 block — H1={h1_bias} wave={_wc} (need ≥3 + sweep)")
+                return
+
+        # ── Wave exhaustion tag (5-6 waves = deep exhaustion, high-priority for analysis)
+        _wave_count_now = int(setup.get('wave_count', 0) or 0)
+        _wave_exhaustion = _wave_count_now >= 5
+        setup['wave_count_tag'] = _wave_count_now
+        setup['wave_exhaustion'] = _wave_exhaustion
+        if _wave_exhaustion:
+            logger.info(
+                f"GFT 2-Step {symbol}: ⭐ WAVE EXHAUSTION TAG — {_wave_count_now} waves "
+                f"direction={direction} H4={h4_bias} — flagged for analysis"
+            )
+            try:
+                import json as _json
+                _wex_path = os.path.join(_ROOT, 'data', 'wave_exhaustion_log.jsonl')
+                _wex_row  = {
+                    'ts'        : datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'symbol'    : symbol,
+                    'direction' : direction,
+                    'wave_count': _wave_count_now,
+                    'h4_bias'   : h4_bias,
+                    'score'     : score,
+                    'mss_type'  : mss_type,
+                    'utc_hour'  : utc_hour,
+                }
+                with open(_wex_path, 'a', encoding='utf-8') as _wf:
+                    _wf.write(_json.dumps(_wex_row) + '\n')
+            except Exception:
+                pass
 
         # Silver Asia SELL block — A+ score (≥13) overrides
         _gft_asia_aplus = (score + (1 if mss_type == 'CHOCH' else 0)) >= 13
@@ -729,6 +846,7 @@ class GFT2StepWorker:
                     f"using state capital ${capital:.2f}"
                 )
         lots    = calc_lot_size(symbol, capital, sig['entry'], sig['stop_loss'], risk_pct)
+        lots    = cap_lots_for_account(symbol, lots, GFT_2STEP_PROFILE)
         lots    = gft_lot_modifier(lots)
         min_lot = INSTRUMENTS.get(symbol, {}).get('min_lot', 0.01)
         if CB6_GFT_HARD_ENFORCEMENT_ENABLED and _gate_decision in ('BLOCK', 'CAUTION'):
@@ -759,7 +877,9 @@ class GFT2StepWorker:
             'lot_boost'      : boost,
             'risk_mode'      : risk_mode,
             'entry_reason'   : (f"{mss_type} score={score}/15 H4={h4_bias} "
-                                f"sim={sim_ratio:.0%} boost={boost}×"),
+                                f"sim={sim_ratio:.0%} boost={boost}× "
+                                f"wave={_wave_count_now}"
+                                + (" ⭐EXHAUSTION" if _wave_exhaustion else "")),
             'spread_at_entry': self._connector.get_spread(symbol) or 0.0,
         })
 
@@ -1054,6 +1174,7 @@ class GFT2StepWorker:
             interval         = '15m',
             on_closed_candle = self.on_closed_candle,
             poll_secs        = poll,
+            on_intracandle   = None if self._paper else self.on_intracandle_poll,
         )
 
         logger.info("GFT 2-Step engine running.")

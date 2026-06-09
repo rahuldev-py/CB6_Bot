@@ -7,7 +7,7 @@ Rules (in priority order):
   UNKNOWN (no archive data) → PASS (don't penalise missing data)
   RANGING + HIGH_VOL        → reduce lots 50%, require score +2
   RANGING                   → require score +1
-  TRENDING against setup    → require score +1 (H4 gate already handles hard blocks)
+  TRENDING against setup    → require score +1 (3-wave rule handles reversals, not H4 gate)
   HIGH_VOL only             → switch risk_mode to "reduced"
   TRENDING aligned          → no change (standard rules apply)
 

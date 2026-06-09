@@ -172,7 +172,8 @@ def _apply_atr_targets(
 
 def scan_setup(df: pd.DataFrame, symbol: str,
                min_rr: float = 3.0,
-               daily_atr: Optional[float] = None) -> Optional[dict]:
+               daily_atr: Optional[float] = None,
+               h4_bias: Optional[str] = None) -> Optional[dict]:
     """
     Run the full ICT Silver Bullet detection chain on a 15m DataFrame.
 
@@ -323,8 +324,69 @@ def scan_setup(df: pd.DataFrame, symbol: str,
 
         in_fvg   = last_low <= fvg_high and last_high >= fvg_low
         near_fvg = abs(last_close - fvg_mid) / (fvg_mid + 1e-9) <= 0.005
+
+        # ── Displacement gate — two tiers ────────────────────────────────────────
+        # Tier 1 (hard block): close > 20% of FVG size past the FVG edge
+        #   → price genuinely blew through, entry missed, return None.
+        # Tier 2 (wick-watching): close within 20% of FVG edge but wick hasn't
+        #   touched FVG yet — don't bail. The in_fvg check below uses high/low
+        #   (not close), so a 15s intracandle scan catching a wick into the FVG
+        #   fires a MARKET entry immediately.
+        # Changed from 10% → 20% after USOIL 2026-06-08 miss: undershoot was
+        # 11.3% of FVG size (0.06/0.53) — bot hard-blocked instead of wick-watching.
+        _miss_tol = (fvg_high - fvg_low) * 0.20
+        if direction == 'BULLISH' and last_close > fvg_high + _miss_tol:
+            logger.info(
+                f"FOREX {symbol}: BULLISH entry MISSED — close {last_close:.5f} "
+                f"displaced above FVG top {fvg_high:.5f} "
+                f"(overshoot {last_close - fvg_high:.5f}, tol {_miss_tol:.5f})"
+            )
+            return None
+        if direction == 'BEARISH' and last_close < fvg_low - _miss_tol:
+            logger.info(
+                f"FOREX {symbol}: BEARISH entry MISSED — close {last_close:.5f} "
+                f"displaced below FVG bottom {fvg_low:.5f} "
+                f"(undershoot {fvg_low - last_close:.5f}, tol {_miss_tol:.5f})"
+            )
+            return None
+        # Tier 2: close just outside FVG edge — wick-watching
+        if direction == 'BEARISH' and last_close < fvg_low:
+            logger.info(
+                f"FOREX {symbol}: BEARISH wick-watch — "
+                f"close {last_close:.5f} below FVG {fvg_low:.5f} "
+                f"(gap {fvg_low - last_close:.5f} within tol {_miss_tol:.5f}); "
+                f"entry fires when 15s scan sees high >= {fvg_low:.5f}"
+            )
+        elif direction == 'BULLISH' and last_close > fvg_high:
+            logger.info(
+                f"FOREX {symbol}: BULLISH wick-watch — "
+                f"close {last_close:.5f} above FVG {fvg_high:.5f} "
+                f"(gap {last_close - fvg_high:.5f} within tol {_miss_tol:.5f}); "
+                f"entry fires when 15s scan sees low <= {fvg_high:.5f}"
+            )
+
+        # Directional near-FVG: approaching from the correct side only.
+        # Prevents the 0.5% distance band from approving BULLISH setups where
+        # price is already ABOVE the FVG (which is an equally close distance
+        # but on the wrong side — the trade is missed, not imminent).
+        if direction == 'BULLISH':
+            near_fvg = near_fvg and last_close <= fvg_high
+        else:
+            near_fvg = near_fvg and last_close >= fvg_low
+
         if not (in_fvg or near_fvg):
             return None
+
+        # ── Entry mode classifier ──────────────────────────────────────────────
+        # MARKET : price is inside the FVG right now → immediate market order
+        # LIMIT  : price is approaching but hasn't touched the FVG yet → pending limit
+        entry_mode = 'MARKET' if in_fvg else 'LIMIT'
+        _fvg_size_pts = max(fvg_high - fvg_low, 1e-9)
+        # FVG fill depth: 0% = price just touched edge, 100% = fully inside/past mid
+        if direction == 'BULLISH':
+            fvg_fill_pct = round(max(0.0, (fvg_high - last_close) / _fvg_size_pts * 100), 1)
+        else:
+            fvg_fill_pct = round(max(0.0, (last_close - fvg_low) / _fvg_size_pts * 100), 1)
 
         # 6. Order Block
         ob = detect_order_block(df, direction, lookback=40)
@@ -408,6 +470,12 @@ def scan_setup(df: pd.DataFrame, symbol: str,
 
         dol_eqh_eql = dol.get('is_eqh_eql', False)
 
+        # OB accumulation duration — candles between sweep and BOS × bar size.
+        # Validated pattern (NIFTY 2026-06-05): ≥45 min = strong OB (+1pt), ≥90 min = institutional (+2pt).
+        sweep_ca       = int((liq_sweep or {}).get('candles_ago', 0))
+        _bar_mins      = cfg.get('bar_size_minutes', 15)
+        ob_duration_mins = max(0, (sweep_ca - 3)) * _bar_mins  # -3: buffer for MSS+FVG formation
+
         score  = 5 if dol_agrees else 4
         score += 2 if mss_type == 'CHOCH' else 1
         score += 1 if in_fvg else 0
@@ -418,13 +486,14 @@ def scan_setup(df: pd.DataFrame, symbol: str,
         score += 1 if sweep_confidence >= 70 else 0
         score += 1 if ob_present else 0
         score += 2 if dol_eqh_eql else 0   # EQH/EQL = denser stop cluster → higher sweep probability
+        score += 2 if ob_duration_mins >= 90 else (1 if ob_duration_mins >= 45 else 0)  # OB accumulation bonus
 
         logger.info(
-            f"FOREX {symbol}: score {score}/18 "
+            f"FOREX {symbol}: score {score}/20 "
             f"(CHoCH={mss_type=='CHOCH'} inFVG={in_fvg} "
             f"sweep={sweep_confirmed} sweepConf={sweep_confidence} "
-            f"OB={ob_present} UT={ut.get('aligned')} "
-            f"EQH_EQL={dol_eqh_eql})"
+            f"OB={ob_present} OB_dur={ob_duration_mins}min "
+            f"UT={ut.get('aligned')} EQH_EQL={dol_eqh_eql})"
         )
 
         setup_out = {
@@ -441,6 +510,7 @@ def scan_setup(df: pd.DataFrame, symbol: str,
             'premium_discount': pd_context,
             'ob'             : ob,
             'ob_present'     : ob_present,
+            'ob_duration_mins': ob_duration_mins,
             'ut_bot'         : ut,
             'liq_sweep'      : liq_sweep,
             'liquidity_state': liquidity_state,
@@ -448,6 +518,9 @@ def scan_setup(df: pd.DataFrame, symbol: str,
             'sweep_quality'  : (liq_sweep or {}).get('quality', {}),
             'sweep_confirmed': sweep_confirmed,
             'daily_atr'      : daily_atr,   # None if not fetched; float if ATR sizing was applied
+            'entry_mode'     : entry_mode,  # 'MARKET' | 'LIMIT' — drives order type in worker
+            'fvg_fill_pct'   : fvg_fill_pct,   # % of FVG already traversed at signal time
+            'price_at_signal': last_close,  # candle close that triggered the scan
             'entry_signal': {
                 'entry'    : entry,
                 'stop_loss': sl,
@@ -462,6 +535,41 @@ def scan_setup(df: pd.DataFrame, symbol: str,
                 'mss_level': round(mss['level'], 5),
             },
         }
+        # ── 3-wave + base enrichment ──────────────────────────────────────────
+        # Compute wave count and base detection. These enrich the score and
+        # enable the 3-wave reversal exception in forex_worker.py.
+        # For trend-following (H4 aligned) these are bonuses, not gates.
+        try:
+            from forex_engine.scanner.mtf_dol_scanner import (
+                count_impulse_waves, detect_wave_base,
+            )
+            # Trend direction being FADED (opposite of setup direction)
+            _fade_dir  = 'BEARISH' if direction == 'BULLISH' else 'BULLISH'
+            _wave_count = count_impulse_waves(df, _fade_dir, lookback=80)
+            _wave_base  = detect_wave_base(df, _fade_dir, lookback=8)
+            setup_out['wave_count']   = _wave_count
+            setup_out['base_formed']  = _wave_base['base_formed']
+            setup_out['base_pct_atr'] = _wave_base['base_pct_atr']
+            if _wave_count >= 3:
+                logger.info(
+                    f"FOREX {symbol}: 3-wave count={_wave_count} "
+                    f"base={'YES' if _wave_base['base_formed'] else 'NO'} "
+                    f"({_wave_base['base_pct_atr']:.2f}×ATR)"
+                )
+        except Exception:
+            setup_out['wave_count']   = 0
+            setup_out['base_formed']  = False
+            setup_out['base_pct_atr'] = 999.0
+
+        # H4 bias — informational only, not a gate.
+        # Removed as direction filter: 15-day backtest showed H4 blocked 17 valid
+        # 3-wave exhaustion setups (wave≥3) and 0 bad trades.
+        if h4_bias and h4_bias not in ('RANGING', direction):
+            logger.info(
+                f"FOREX {symbol}: H4 context — H4={h4_bias} setup={direction} "
+                f"wave={setup_out.get('wave_count', 0)} (informational — not a gate)"
+            )
+
         log_scanner_outcome('forex', 'forex_signal_scanner', symbol, setup_out, outcome='SCANNER_PASS')
         return setup_out
 

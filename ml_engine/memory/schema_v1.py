@@ -24,6 +24,9 @@ class SetupDNA:
     bos_quality: float
     fvg_bucket: str
     htf_bias: str
+    wave_count: int = 0
+    base_formed: bool = False
+    base_pct_atr: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

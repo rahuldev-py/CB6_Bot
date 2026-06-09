@@ -13,7 +13,7 @@ from forex_engine.forex_instruments import (
 FREE_TRIAL = FTMO_RULES['free_trial']
 CHALLENGE  = FTMO_RULES['challenge']
 
-ACCOUNT_SIZE       = 10000.0
+ACCOUNT_SIZE       = 25000.0
 LEVERAGE           = FTMO_RULES['leverage']
 RISK_PER_TRADE_PCT = FTMO_RULES['risk_per_trade_pct']
 MAX_TRADES_PER_DAY = FTMO_RULES['max_trades_per_day']
