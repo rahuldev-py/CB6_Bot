@@ -36,7 +36,8 @@ def _probe_gft_10k_symbols(terminal_path: str, credentials: dict) -> dict:
                 logger.info(f"[GFT_10K] symbol probe: {canonical} → {found}")
             elif not found:
                 logger.warning(f"[GFT_10K] symbol probe: no match for {canonical}")
-        mt5.shutdown()
+        # Do NOT call mt5.shutdown() here — same reason as GFT_1K adapter:
+        # leaving the session alive lets MT5Connector._connect() reuse it.
     except Exception as e:
         logger.warning(f"[GFT_10K] symbol probe failed ({e}) — using known-good Server3 map")
         return KNOWN_GOOD
@@ -55,24 +56,22 @@ def build_gft_10k_connector(paper: Optional[bool] = None):
         logger.info(f"[{account_id}] Paper mode — building paper MT5Connector")
         return MT5Connector(paper=True)
 
-    import time as _time
-    terminal_path = None
-    for _attempt in range(15):
-        terminal_path = get_terminal_path(account_id)
-        if terminal_path:
-            break
-        _time.sleep(2)
+    import os as _os
+
+    # Resolve terminal path directly from env var — do NOT gate on os.path.isfile().
+    # Same fix as GFT_1K: the pre-check intermittently fails on Windows during MT5 init.
+    # mt5.initialize() is the real gatekeeper.
+    _FALLBACK_PATH = "C:/CB6_MT5/MT5_GFT_10K/terminal64.exe"
+    _env_val  = _os.getenv("GFT_10K_MT5_TERMINAL_PATH", "").strip()
+    _raw_path = _env_val or _FALLBACK_PATH
+    terminal_path = _raw_path.replace("/", _os.sep)
+
+    logger.info(
+        f"[{account_id}] terminal path resolved: {terminal_path!r} "
+        f"(exists={_os.path.isfile(terminal_path)})"
+    )
 
     credentials = get_credentials(account_id)
-
-    if not terminal_path:
-        import os as _os
-        env_val = _os.getenv("GFT_10K_MT5_TERMINAL_PATH", "NOT SET")
-        diag = f"GFT_10K_MT5_TERMINAL_PATH={env_val!r}"
-        logger.error(f"[{account_id}] terminal path not found — {diag}")
-        logger.warning(f"[{account_id}] Install MT5 terminal at C:\\CB6_MT5\\MT5_GFT_10K\\")
-        raise RuntimeError(f"[{account_id}] dedicated terminal path required — {diag}")
-
     if not credentials:
         raise RuntimeError(f"[{account_id}] credentials missing — check .env")
 

@@ -913,7 +913,8 @@ MSS_RECENCY_CHOCH = 15   # CHoCH: 15×3min = 45 min on 3-min bars
 MSS_RECENCY_BOS   = 30   # BOS:   30×3min = 90 min on 3-min bars
 MSS_RECENCY_CANDLES = MSS_RECENCY_CHOCH  # legacy alias, kept for imports
 
-def detect_sb_mss(df, lookback: int = 30, use_wicks: bool = False) -> Optional[Dict]:
+def detect_sb_mss(df, lookback: int = 30, use_wicks: bool = False,
+                  direction_hint: Optional[str] = None) -> Optional[Dict]:
     """
     MSS: any candle in the lookback window that broke beyond a prior swing.
     Returns the MOST RECENT such event within MSS_RECENCY_CANDLES.
@@ -922,6 +923,10 @@ def detect_sb_mss(df, lookback: int = 30, use_wicks: bool = False) -> Optional[D
     use_wicks=False (NSE default): break confirmed only when candle CLOSES beyond swing.
     use_wicks=True  (Forex/Crypto): any wick beyond the swing counts as a break —
                     catches CHoCH/BOS earlier, consistent with ICT wick-based structure.
+
+    direction_hint: when provided, prefer events in that direction over the most recent.
+    Used when a micro-retrace creates a newer opposite-direction MSS that shadows
+    the structural MSS that set up the trade.
     """
     try:
         recent = df.tail(lookback).reset_index(drop=True)
@@ -1014,6 +1019,14 @@ def detect_sb_mss(df, lookback: int = 30, use_wicks: bool = False) -> Optional[D
         if not recent_events:
             return None
 
+        # When direction_hint is provided, prefer events in that direction.
+        # This handles the case where a micro-retrace created a newer opposite-direction
+        # MSS that shadows the structural MSS (sweep→CHoCH→FVG) that set up the trade.
+        if direction_hint:
+            hinted = [e for e in recent_events if e['direction'] == direction_hint]
+            if hinted:
+                recent_events = hinted
+
         # Prefer most recent; tie-break by type (CHoCH > BOS for same recency)
         best = min(recent_events, key=lambda x: (x['candles_ago'], 0 if x['type'] == 'CHOCH' else 1))
         return best
@@ -1081,9 +1094,12 @@ def detect_sb_fvg(df, direction: str, lookback: int = 20,
                 if float(c0['high']) < float(c2['low']):
                     fvg_low = float(c0['high'])
                     fvg_high = float(c2['low'])
-                    if not future.empty and (future['close'].astype(float) <= fvg_low).any():
-                        continue
                     size = fvg_high - fvg_low
+                    # Mitigated only when price closes well BELOW the FVG bottom —
+                    # a retrace INTO the FVG (close near fvg_low) is the entry, not a mitigation.
+                    # 25% of FVG size buffer: e.g. 10pt FVG → mitigated only if close < fvg_low - 2.5pt
+                    if not future.empty and (future['close'].astype(float) < fvg_low - size * 0.25).any():
+                        continue
                     fvgs.append({
                         'fvg_low'       : fvg_low,             # wick high of c0
                         'fvg_high'      : fvg_high,            # wick low  of c2
@@ -1104,9 +1120,11 @@ def detect_sb_fvg(df, direction: str, lookback: int = 20,
                 if float(c0['low']) > float(c2['high']):
                     fvg_low = float(c2['high'])
                     fvg_high = float(c0['low'])
-                    if not future.empty and (future['close'].astype(float) >= fvg_high).any():
-                        continue
                     size = fvg_high - fvg_low
+                    # Mitigated only when price closes well ABOVE the FVG top —
+                    # a retrace INTO the FVG (close near fvg_high) is the entry, not a mitigation.
+                    if not future.empty and (future['close'].astype(float) > fvg_high + size * 0.25).any():
+                        continue
                     fvgs.append({
                         'fvg_low'       : fvg_low,             # wick high of c2
                         'fvg_high'      : fvg_high,            # wick low  of c0
@@ -1418,17 +1436,31 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
         except Exception:
             oi_dol_boost, oi_dol_reason = 0.0, "OI_SKIP"
 
-        # 3. MSS matching direction
+        # 3. MSS must confirm the reversal — direction is always OPPOSITE to DOL draw direction.
+        #    DOL BEARISH (sell-side swept, drawn down) → expect BULLISH MSS (CHoCH/BOS up) → LONG
+        #    DOL BULLISH (buy-side swept, drawn up)   → expect BEARISH MSS (CHoCH/BOS down) → SHORT
         mss = detect_sb_mss(df)
         if mss is None:
             logger.info(f"SB skip {symbol}: no MSS detected (need CHoCH or BOS on 3m/5m)")
             return None
-        if mss['direction'] != direction:
+        expected_mss = 'BULLISH' if direction == 'BEARISH' else 'BEARISH'
+        if mss['direction'] != expected_mss:
+            # Most recent MSS is wrong direction — likely a micro-retrace that formed
+            # AFTER the structural CHoCH/BOS that set up the trade. Retry with direction_hint
+            # to find the most recent MSS in the expected direction.
+            mss_retry = detect_sb_mss(df, direction_hint=expected_mss)
+            if mss_retry is None or mss_retry['direction'] != expected_mss:
+                logger.info(
+                    f"SB skip {symbol}: MSS direction {mss['direction']} != expected {expected_mss} "
+                    f"(DOL={dol.get('type')} @ {dol.get('level')} draw={direction}) — "
+                    f"no {expected_mss} MSS found in recency window"
+                )
+                return None
             logger.info(
-                f"SB skip {symbol}: MSS direction {mss['direction']} != DOL direction {direction} "
-                f"(DOL={dol.get('type')} @ {dol.get('level')})"
+                f"SB {symbol}: micro-retrace MSS overridden — using {expected_mss} MSS "
+                f"{mss_retry['candles_ago']}ca ago (latest was {mss['direction']} {mss['candles_ago']}ca)"
             )
-            return None
+            mss = mss_retry
         mss_type = mss.get('type', 'BOS')   # extracted early — used by H1 CHoCH override
 
         # Temporal ordering note (NSE path): log when sweep.ca <= mss.ca but do NOT

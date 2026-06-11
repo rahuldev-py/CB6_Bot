@@ -15,7 +15,7 @@ from agents.config import call_agent, safe_parse, REPORTS_DIR, CB6_ROOT
 SYSTEM = """You are CIPHER, the Quant Analyst of CB6 Quantum.
 You manage 4 accounts: NSE Fyers (₹26K real), GFT $1K Instant (real funded), GFT $5K 2-Step (prop challenge), FTMO $10K (prop challenge).
 
-Priority order: GFT $1K (real money first) > NSE (real money) > GFT $5K (prop) > FTMO (prop).
+Priority order: GFT $5K 2-Step (PRIMARY — prop challenge) > GFT $1K Instant > NSE Fyers > FTMO (deprioritized — runs as-is).
 
 Give SPECIFIC recommendations per account. Use real numbers. Reference actual symbols and sessions.
 Flag any H4 bias violations — they are hard rule violations.
@@ -144,21 +144,30 @@ def _load_state(path: str) -> dict:
 
 def _load_ml_metrics() -> dict:
     metrics = {}
-    for model in ['cnn', 'dnn', 'rnn']:
-        for market in ['nse', 'ftmo', 'gft']:
-            p = CB6_ROOT / f'ml/models/{market}/{model}_meta_latest.json'
-            if p.exists():
-                try:
-                    data = json.loads(p.read_text())
-                    if data:
-                        metrics[f"{model}_{market}"] = {
-                            "trained_at": data.get('trained_at'),
-                            "test_acc": data.get('test_acc'),
-                            "test_prec": data.get('test_prec'),
-                            "val_loss": data.get('val_loss'),
-                        }
-                except Exception:
-                    pass
+    registry_path = CB6_ROOT / 'ml_engine' / 'config' / 'model_registry.json'
+    if not registry_path.exists():
+        return metrics
+    try:
+        registry = json.loads(registry_path.read_text(encoding='utf-8'))
+    except Exception:
+        return metrics
+    for model_id, m in registry.get('models', {}).items():
+        if m.get('research_only') or m.get('status') in ('RESEARCH', 'NOT_TRAINED'):
+            continue
+        versions = m.get('versions', [])
+        if not versions:
+            continue
+        latest = versions[-1]
+        trained_at = latest.get('trained_at', '')
+        metrics[model_id] = {
+            "trained_at": trained_at,
+            "test_acc": latest.get('accuracy'),
+            "test_prec": latest.get('f1'),
+            "val_loss": latest.get('brier_score'),
+            "auc": latest.get('auc'),
+            "engine": m.get('engine', ''),
+            "activation_gate_passed": m.get('activation_gate_passed', False),
+        }
     return metrics
 
 
@@ -208,9 +217,8 @@ Direction edge: {json.dumps(journal.get('by_direction',{}))}
 
 KEY STATS TO REFERENCE:
 - XAGUSD: 80% WR, 1.81 avg R:R — TOP performer
-- XAUUSD: 83.7% WR — great but disabled on GFT
+- XAUUSD: 83.7% WR — now ENABLED on all GFT accounts (H4 bias filter enforced; re-enabled 2026-06-10)
 - USOIL: 63% WR, 1.29 R:R
-- GBPUSD: 33% WR — DISABLE immediately
 - London session: 76.9% WR | NY: 63.5% | Overlap: 47.8%
 - BEARISH edge: XAGUSD BEARISH=88.2% vs BULLISH=66.7%
 
@@ -248,8 +256,7 @@ Give SPECIFIC actions for EACH account. Flag H4 violations. Return JSON."""
         "key_insights": [
             "XAGUSD BEARISH 88.2% WR — best edge in the system",
             "London session 76.9% WR — 13pts better than NY",
-            "GBPUSD 33% WR — destroying expectancy, disable now",
-            "GFT $5K: H4 counter-trend entry cost -$33.60 on one trade",
+            "GFT $5K: XAUUSD re-enabled 2026-06-10 with H4 bias filter",
             "NSE: real ₹26K at risk with no exit tracking confirmed",
         ],
     }

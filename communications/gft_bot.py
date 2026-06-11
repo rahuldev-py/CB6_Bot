@@ -162,8 +162,8 @@ def _cmd_start():
 
         _send(
             "<b>CB6 QUANTUM — GFT $5K 2-STEP ENGINE</b>\n\n"
-            "Markets  : Silver (XAGUSD) | Oil (USOIL)\n"
-            "           Gold (XAUUSD) ⛔ PERMANENTLY DISABLED on GFT\n"
+            "Markets  : Gold (XAUUSD) | Silver (XAGUSD) | Oil (USOIL)\n"
+            "           H4 bias filter mandatory before Gold entry\n"
             "Strategy : ICT Silver Bullet · 15-min candles\n"
             "Platform : MetaTrader 5 — GFT $5K 2-Step GOAT\n\n"
             f"<b>ACCOUNT [GFT]</b>\n"
@@ -671,7 +671,7 @@ def _cmd_help():
         "<b>MARKETS</b>\n"
         "Silver (XAGUSD) : min score 11 | risk 0.50% normal\n"
         "Oil    (USOIL)  : min score 11 | risk 0.50% normal\n"
-        "Gold   (XAUUSD) : ⛔ PERMANENTLY DISABLED on GFT\n\n"
+        "Gold   (XAUUSD) : min score 11 | max lot 0.05 | H4 bias required\n\n"
         "<b>ACCOUNT — GFT $5K 2-Step GOAT</b>\n"
         "Leverage       : 1:100\n"
         "Normal risk    : 0.50% = ~$25/trade\n"
@@ -929,7 +929,7 @@ def _cmd_10k_status():
             f"Daily DD   : ${daily_used:.2f} / ${daily_lim:.0f}  ({daily_pct}%)\n\n"
             f"<b>OPEN TRADES ({len(open_t)})</b>"
             f"{open_line if open_t else chr(10) + '  None'}\n\n"
-            f"Symbols    : XAGUSD | USOIL  (XAUUSD ⛔ DISABLED)\n"
+            f"Symbols    : XAUUSD (max 0.10L H4 req) | XAGUSD | USOIL\n"
             f"Risk/trade : {_P['risk_per_trade_pct']}% = ${_P['account_size'] * _P['risk_per_trade_pct'] / 100:.0f}  max lot {_P['max_lot']}"
         )
     except Exception as e:

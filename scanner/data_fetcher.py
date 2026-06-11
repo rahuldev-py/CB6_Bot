@@ -312,39 +312,58 @@ def get_historical_data(fyers, symbol, timeframe, days=30, max_retries=3):
     return df
 
 
-def inject_live_tick(df, symbol: str):
+def inject_live_tick(df, symbol: str, fyers=None):
     """
-    Patch the last bar of df with the most recent real-time LTP from the tick cache.
+    Patch the last bar of df with the most recent real-time LTP.
+
+    Priority:
+      1. WebSocket tick cache (TrueData or Fyers WS) — sub-second latency
+      2. Fyers quotes() REST API via fyers session — always available during market hours
 
     Scanning every 15s on 3-min bars means the last bar may be up to 3 min old.
-    Injecting the live tick into last-bar close/high/low gives the scanner a
-    price that is at most ~1 tick old (< 1 second) instead of < 3 minutes old.
+    Injecting the live tick gives the scanner a price < 1 second old for entry checks.
+    Structure detection (DOL/MSS/FVG location) is unaffected — it uses completed candles.
 
-    The original df is NOT mutated — a shallow copy of the last row is modified.
-    The tick cache is non-blocking; if no tick exists the df is returned unchanged.
+    The original df is NOT mutated — a copy of the last row is modified and returned.
+    Falls back to unchanged df if no live price is available from any source.
     """
     if df is None or len(df) == 0:
         return df
+    ltp = None
     try:
+        # 1. WebSocket tick cache (TrueData primary, Fyers WS secondary)
         from scanner.websocket_feed import get_latest_tick
         tick = get_latest_tick(symbol)
         if not tick or 'ltp' not in tick:
-            # Try TrueData symbol format (NSE:SYMBOL → SYMBOL-I)
+            # TrueData symbol format: NSE:NIFTY26JUNFUT → NIFTY-I
             td_sym = symbol.split(':')[-1].replace('26JUNFUT', '-I').replace('FUT', '-I')
             tick   = get_latest_tick(td_sym)
-        if not tick or 'ltp' not in tick:
-            return df
-        ltp = float(tick['ltp'])
-        if ltp <= 0:
-            return df
-        df = df.copy()
-        last = df.index[-1]
-        df.loc[last, 'close'] = ltp
-        df.loc[last, 'high']  = max(float(df.loc[last, 'high']), ltp)
-        df.loc[last, 'low']   = min(float(df.loc[last, 'low']),  ltp)
-        return df
+        if tick and 'ltp' in tick:
+            ltp = float(tick['ltp'])
     except Exception:
+        pass
+
+    # 2. Fyers quotes() REST API — fallback when WebSocket cache is empty
+    #    (TrueData expired, bot just started, or WS reconnecting)
+    if (ltp is None or ltp <= 0) and fyers is not None:
+        try:
+            from scanner.live_price import get_live_price
+            ltp_api = get_live_price(fyers, symbol)
+            if ltp_api and ltp_api > 0:
+                ltp = float(ltp_api)
+                logger.debug(f"inject_live_tick {symbol}: WS cache empty — using Fyers API LTP {ltp:.2f}")
+        except Exception:
+            pass
+
+    if ltp is None or ltp <= 0:
         return df
+
+    df = df.copy()
+    last = df.index[-1]
+    df.loc[last, 'close'] = ltp
+    df.loc[last, 'high']  = max(float(df.loc[last, 'high']), ltp)
+    df.loc[last, 'low']   = min(float(df.loc[last, 'low']),  ltp)
+    return df
 
 
 def get_all_data(fyers, symbols, timeframe, days=30):

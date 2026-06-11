@@ -1,7 +1,7 @@
 """
 LEDGER — CB6 CFO
 Tracks all 4 accounts: NSE Fyers, GFT $1K, GFT $5K, FTMO.
-Priority: protect real money (NSE + GFT $1K) first, then prop challenges.
+Priority: GFT $5K 2-Step (PRIMARY) > GFT $1K Instant > NSE Fyers > FTMO (deprioritized).
 """
 import json
 from datetime import datetime
@@ -72,10 +72,10 @@ def run() -> dict:
     gft_5k  = _load_state('data/gft_5k/state.json')
     ftmo    = _load_state('data/ftmo_10k/state.json')
 
-    gft_5k_pnl       = gft_5k.get('total_pnl', -33)
+    gft_5k_pnl       = gft_5k.get('total_pnl', -255.52)
     ftmo_pnl         = ftmo.get('total_pnl', 0)
-    gft_1k_capital   = gft_1k.get('capital', 1000)
-    gft_5k_capital   = gft_5k.get('capital', 4967)
+    gft_1k_capital   = gft_1k.get('capital', 982.53)
+    gft_5k_capital   = gft_5k.get('capital', 4744.48)
     ftmo_capital     = ftmo.get('capital', 9891)
 
     real_capital_usd = gft_1k_capital + 310  # GFT $1K + NSE ₹26K converted
@@ -90,15 +90,15 @@ PRIORITY 2 — NSE FYERS (Real demat money):
 Capital: ₹26,000 (~$310) | 38 open trade entries, 0 exits recorded
 Status: Exit tracking may be broken
 
-PRIORITY 3 — GFT $5K 2-STEP (Prop challenge):
+PRIORITY 3 — GFT $5K 2-STEP (Prop challenge — PRIMARY):
 Capital: ${gft_5k_capital} | Total PnL: ${gft_5k_pnl}
-Phase 1: Need +$400 | Progress: ${gft_5k_pnl}/+$400 = {round((gft_5k_pnl+400)/400*100 if gft_5k_pnl > -400 else 0, 1)}% | Remaining: ${round(400-gft_5k_pnl, 2)}
-Both closed trades lost. H4 violation found.
+Phase 1: Need +$400 profit | Current progress: ${gft_5k_pnl} | Remaining profit needed: ${round(400-gft_5k_pnl, 2)}
+3 closed trades, all losses. Max DD used: ${round(5000-gft_5k_capital, 2)} of $500 limit.
 After passing: Get $5K master account → fund CB6 infrastructure
 
-PRIORITY 4 — FTMO $10K (Prop challenge):
+PRIORITY 4 — FTMO $10K (Prop challenge — DEPRIORITIZED, runs as-is):
 Capital: ${ftmo_capital} | Total PnL: ${ftmo_pnl}
-Target: +$500 | Remaining: ~${max(0, 500-ftmo_pnl)} | DEADLINE: ~June 6 2026
+No active engineering effort on FTMO.
 
 TOTAL REAL MONEY AT RISK: ${real_capital_usd} (GFT $1K + NSE ₹26K)
 TOTAL PROP CAPITAL: ${gft_5k_capital + ftmo_capital}
@@ -115,7 +115,7 @@ Return CFO report as JSON with real numbers."""
             "gft_1k_instant": {"capital_usd": gft_1k_capital, "daily_pnl": gft_1k.get('daily_pnl', 0), "total_pnl": gft_1k.get('total_pnl', 0), "daily_dd_used_pct": 0, "max_dd_used_pct": 0, "status": "ACTIVE_NO_TRADES", "priority": 1},
             "nse_fyers": {"capital_inr": 26000, "capital_usd": 310, "open_trades": 38, "status": "EXIT_TRACKING_CHECK_NEEDED", "priority": 2},
             "gft_5k_2step": {"capital_usd": gft_5k_capital, "total_pnl": gft_5k_pnl, "phase1_target": 400, "phase1_progress": gft_5k_pnl, "phase1_remaining": round(400 - gft_5k_pnl, 2), "phase1_pct": round((gft_5k_pnl + 400) / 400 * 100, 1), "status": "BEHIND", "priority": 3},
-            "ftmo_10k": {"capital_usd": ftmo_capital, "total_pnl": ftmo_pnl, "target": 500, "remaining": max(0, round(500 - ftmo_pnl, 2)), "deadline": "June 6 2026", "days_left": 2, "status": "URGENT", "priority": 4},
+            "ftmo_10k": {"capital_usd": ftmo_capital, "total_pnl": ftmo_pnl, "status": "DEPRIORITIZED", "priority": 4},
         },
         "total_real_capital_usd": real_capital_usd,
         "total_prop_capital_usd": gft_5k_capital + ftmo_capital,
@@ -124,8 +124,8 @@ Return CFO report as JSON with real numbers."""
         "saas_projection": {"gate_open": False, "gate_condition": "NSE WR ≥56% + GFT funded", "months_to_launch": 4, "path_to_1m": "Pass GFT $5K → infrastructure fund → NSE WR gate → brokera.in → 2500 users"},
         "financial_health": "YELLOW",
         "real_money_at_risk": real_capital_usd,
-        "alerts": ["FTMO deadline June 6 — 2 days", "GFT $5K H4 violation cost -$33", "NSE exit tracking needs verification"],
-        "cfo_summary": f"4 accounts active. Real money: ${real_capital_usd} (GFT $1K + NSE ₹26K). Prop challenges: GFT $5K at -$33 (need +$433 for Phase 1), FTMO needs +$608 by June 6. Agent cost: $0/month.",
+        "alerts": ["GFT $5K needs +$655.52 more profit for Phase 1 (balance $4,744.48, total PnL -$255.52)", "NSE token must be refreshed before 10:00 IST"],
+        "cfo_summary": f"3 live accounts active. Real money: ${real_capital_usd} (GFT $1K $982 + NSE ₹26K). GFT $5K: $4,744.48 balance, -$255.52 total PnL, need +$655.52 profit for Phase 1. Agent cost: $0/month.",
     }
 
     try:

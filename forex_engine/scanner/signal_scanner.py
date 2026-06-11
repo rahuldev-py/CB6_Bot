@@ -3,6 +3,7 @@
 # Orchestrates: DOL → sweep → MSS → FVG → price gate → OB → UT → score.
 
 import os
+import time
 from datetime import datetime, timezone
 from typing import Optional
 import pandas as pd
@@ -10,6 +11,12 @@ import pandas as pd
 from utils.logger import logger
 from ml_engine.memory.shadow_logger import log_scanner_outcome
 from forex_engine.forex_instruments import INSTRUMENTS
+
+# Suppress repeated MISSED logs for the same blown FVG zone.
+# Key: (symbol, direction, fvg_top_rounded) → timestamp first logged.
+# Silence subsequent MISSED logs for 15 minutes (one candle).
+_MISSED_ZONE_CACHE: dict = {}
+_MISSED_ZONE_TTL   = 900  # 15 minutes in seconds
 
 # ── Kill Zone Windows (UTC) ─────────────────────────────────────────────────────
 # London KZ: 07-12 UTC  |  NY KZ: 16-20 UTC
@@ -336,18 +343,31 @@ def scan_setup(df: pd.DataFrame, symbol: str,
         # 11.3% of FVG size (0.06/0.53) — bot hard-blocked instead of wick-watching.
         _miss_tol = (fvg_high - fvg_low) * 0.20
         if direction == 'BULLISH' and last_close > fvg_high + _miss_tol:
-            logger.info(
-                f"FOREX {symbol}: BULLISH entry MISSED — close {last_close:.5f} "
-                f"displaced above FVG top {fvg_high:.5f} "
-                f"(overshoot {last_close - fvg_high:.5f}, tol {_miss_tol:.5f})"
-            )
+            _zone_key = (symbol, direction, round(fvg_high, 3))
+            _now = time.monotonic()
+            # Evict expired entries
+            _MISSED_ZONE_CACHE.update({k: v for k, v in _MISSED_ZONE_CACHE.items() if _now - v < _MISSED_ZONE_TTL})
+            if _zone_key not in _MISSED_ZONE_CACHE:
+                _MISSED_ZONE_CACHE[_zone_key] = _now
+                logger.info(
+                    f"FOREX {symbol}: BULLISH entry MISSED — close {last_close:.5f} "
+                    f"displaced above FVG top {fvg_high:.5f} "
+                    f"(overshoot {last_close - fvg_high:.5f}, tol {_miss_tol:.5f}) "
+                    f"[zone silenced for 15 min]"
+                )
             return None
         if direction == 'BEARISH' and last_close < fvg_low - _miss_tol:
-            logger.info(
-                f"FOREX {symbol}: BEARISH entry MISSED — close {last_close:.5f} "
-                f"displaced below FVG bottom {fvg_low:.5f} "
-                f"(undershoot {fvg_low - last_close:.5f}, tol {_miss_tol:.5f})"
-            )
+            _zone_key = (symbol, direction, round(fvg_low, 3))
+            _now = time.monotonic()
+            _MISSED_ZONE_CACHE.update({k: v for k, v in _MISSED_ZONE_CACHE.items() if _now - v < _MISSED_ZONE_TTL})
+            if _zone_key not in _MISSED_ZONE_CACHE:
+                _MISSED_ZONE_CACHE[_zone_key] = _now
+                logger.info(
+                    f"FOREX {symbol}: BEARISH entry MISSED — close {last_close:.5f} "
+                    f"displaced below FVG bottom {fvg_low:.5f} "
+                    f"(undershoot {fvg_low - last_close:.5f}, tol {_miss_tol:.5f}) "
+                    f"[zone silenced for 15 min]"
+                )
             return None
         # Tier 2: close just outside FVG edge — wick-watching
         if direction == 'BEARISH' and last_close < fvg_low:
@@ -458,7 +478,7 @@ def scan_setup(df: pd.DataFrame, symbol: str,
 
         # 9. Confluence
         mss_type       = mss.get('type', 'BOS')
-        dol_agrees     = (dol['direction'] == direction)
+        dol_agrees     = (dol['direction'] != direction)  # ICT reversal: DOL opposite to MSS/trade direction
         # Bug 2 fix: use lenient sweep_confirmed() helper instead of inline
         # level_state == 'SWEPT' check.  Helper allows level_state None (sweep
         # detected but not tracked by state machine) or STATE_SWEPT — both are

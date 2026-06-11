@@ -618,29 +618,38 @@ class GFT2StepWorker:
         h1_bias = get_h1_bias(self._connector, symbol)
         h4_bias = get_h4_bias(self._connector, symbol)
 
-        # H4 — 3-wave reversal rule (not a hard gate on direction).
-        # Counter-H4 allowed only when 3 impulse waves complete + base formed + sweep confirmed.
-        # 1st and 2nd pullbacks are traps — only the 3rd pullback is the entry.
-        # base_formed = price has consolidated after the 3rd wave extreme (exhaustion confirmed).
+        # H4 direction gate — XAUUSD only.
+        # The May 22 disaster was XAUUSD SELL against a bullish H4 — the hard gate was
+        # added to prevent that exact scenario. XAGUSD and USOIL have different H4
+        # dynamics and should not be blocked by a Gold-specific filter.
+        # For XAUUSD: hard gate with 3-wave reversal exception (base_formed required).
+        # For XAGUSD/USOIL: H4 is informational only — log but do not block.
         if h4_bias not in ('RANGING', direction):
-            _wc_h4   = int(setup.get('wave_count', 0) or 0)
-            _sw_h4   = bool(setup.get('sweep_confirmed', False))
-            _base_h4 = bool(setup.get('base_formed', False))
-            if _wc_h4 >= 3 and _sw_h4 and _base_h4:
-                logger.info(
-                    f"GFT 2-Step {symbol}: counter-H4 ALLOWED — 3-wave reversal + base "
-                    f"wave={_wc_h4} H4={h4_bias} HALF SIZE T1-only"
-                )
-                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
-                setup['t1_only']         = True
-                setup['reversal_3wave']  = True
+            _xauusd_gate = 'XAUUSD' in symbol.upper()
+            if _xauusd_gate:
+                _wc_h4   = int(setup.get('wave_count', 0) or 0)
+                _sw_h4   = bool(setup.get('sweep_confirmed', False))
+                _base_h4 = bool(setup.get('base_formed', False))
+                if _wc_h4 >= 3 and _sw_h4 and _base_h4:
+                    logger.info(
+                        f"GFT 2-Step {symbol}: counter-H4 ALLOWED — 3-wave reversal + base "
+                        f"wave={_wc_h4} H4={h4_bias} HALF SIZE T1-only"
+                    )
+                    setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                    setup['t1_only']         = True
+                    setup['reversal_3wave']  = True
+                else:
+                    logger.info(
+                        f"GFT 2-Step {symbol}: counter-H4 SKIP — 3-wave gate not met "
+                        f"wave={_wc_h4} sweep={_sw_h4} base={_base_h4} H4={h4_bias} "
+                        f"(need wave≥3 + sweep + base)"
+                    )
+                    return
             else:
                 logger.info(
-                    f"GFT 2-Step {symbol}: counter-H4 SKIP — 3-wave gate not met "
-                    f"wave={_wc_h4} sweep={_sw_h4} base={_base_h4} H4={h4_bias} "
-                    f"(need wave≥3 + sweep + base)"
+                    f"GFT 2-Step {symbol}: H4={h4_bias} vs {direction} "
+                    f"(informational — H4 gate is XAUUSD-only, {symbol} proceeds)"
                 )
-                return
 
         # H1 — 3-wave exception: counter-H1 allowed when wave≥3 + sweep confirmed
         _wc = int(setup.get('wave_count', 0) or 0)

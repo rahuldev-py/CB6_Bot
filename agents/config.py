@@ -48,7 +48,7 @@ ACCOUNT_RULES = {
         'max_dd_limit':   60,
         'max_risk_usd':   2.50,
         'max_lot':        0.01,
-        'disabled_symbols': ['XAUUSD'],
+        'disabled_symbols': [],
         'h4_bias_required': True,
     },
     'gft_5k_2step': {
@@ -56,7 +56,7 @@ ACCOUNT_RULES = {
         'max_total_loss':   500,
         'phase1_target':    400,
         'phase2_target':    300,
-        'disabled_symbols': ['XAUUSD'],
+        'disabled_symbols': [],
         'h4_bias_required': True,
     },
     'ftmo_10k': {

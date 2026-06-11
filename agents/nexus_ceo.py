@@ -171,26 +171,24 @@ Known facts:
 - London session 76.9% WR vs NY 63.5%
 - BEARISH trades outperform BULLISH on all symbols
 - CNN acc=75.8%, DNN prec=91.8% — ML healthy
-- FTMO needs +$608 by ~June 6 (URGENT deadline)
-- GFT 5K needs +$433 for Phase 1
+- FTMO: deprioritized, runs as-is
+- GFT 5K: balance $4,744.48 (started $5,000, total PnL -$255.52), needs +$655.52 for Phase 1 target (+$400 profit)
 
 Synthesize into board report. BE SPECIFIC WITH NUMBERS. Return JSON."""
 
     fallback = {
         "date": datetime.now().strftime('%Y-%m-%d'),
-        "executive_headline": "CB6 SOVEREIGN running — FTMO deadline urgent, GFT Phase 1 in progress",
+        "executive_headline": "CB6 SOVEREIGN running — GFT $5K Phase 1 in progress, 3 live accounts active",
         "overall_status": "YELLOW",
-        "prop_firm_update": "FTMO needs +$608 by June 6 (URGENT). GFT 5K needs +$433 for Phase 1.",
-        "engineering_update": "Codebase healthy. GBPUSD 33% WR flagged for review.",
+        "prop_firm_update": "GFT $5K: $4,744.48 balance, need +$655.52 profit for Phase 1. GFT $1K: $982.53. GFT $10K: $10,000. FTMO deprioritized.",
+        "engineering_update": "Codebase healthy. XAUUSD re-enabled on all GFT accounts with H4 filter.",
         "ml_update": "CNN 75.8% acc, DNN 91.8% prec — models healthy. Monitor for retraining.",
         "growth_update": "Daily content pipeline active. brokera.in gate not yet open.",
-        "financial_update": "Agent cost: $0/month. Prop firm targets in progress.",
-        "decisions_needed": [
-            {"number": 1, "decision": "Disable GBPUSD — 33% WR on 21 trades is destroying expectancy", "recommendation": "NEXUS says: disable GBPUSD in forex_instruments.py immediately", "urgency": "HIGH", "impact": "Continuing to trade GBPUSD bleeds ~1R per 3 trades"},
-        ],
-        "wins": ["XAGUSD 80% WR — top performer", "London session 76.9% WR confirmed", "ML models healthy"],
-        "risks": ["FTMO June 6 deadline — need +$608 in ~2 days", "GBPUSD 33% WR bleeding PnL", "GFT Phase 1 still needs 3 trading days"],
-        "tomorrow_priorities": ["Focus FTMO on XAGUSD London session BEARISH setups", "Review GBPUSD disable in forex_instruments.py", "Monitor GFT Phase 1 trade count"],
+        "financial_update": "Agent cost: $0/month. GFT $5K total PnL: -$255.52. Need Phase 1 win to fund infrastructure.",
+        "decisions_needed": [],
+        "wins": ["XAUUSD re-enabled on all GFT accounts with H4 filter 2026-06-10", "GFT $10K dry_run blocker fixed", "NSE + Forex scanner ICT reversal fix applied"],
+        "risks": ["GFT $5K needs +$655.52 more profit for Phase 1 target", "NSE token must be refreshed before 10:00 IST"],
+        "tomorrow_priorities": ["GFT $5K: target XAUUSD + XAGUSD London session setups", "NSE: ICT Silver Bullet windows 10-11 / 13-14 IST", "Monitor all 3 GFT accounts for XAUUSD first trade after re-enable"],
         "path_to_1m_status": "Month 1-2 prop firm phase. SaaS gate needs NSE WR ≥56% + GFT funded.",
     }
 

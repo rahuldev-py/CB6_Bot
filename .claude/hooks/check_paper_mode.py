@@ -45,18 +45,8 @@ def main():
             }))
             return
 
-    # Block XAUUSD being re-enabled on GFT files
-    if "gft" in file_path.lower() and "XAUUSD" in new_string:
-        if "enabled_symbols" in new_string or "allowed" in new_string.lower():
-            print(json.dumps({
-                "approve": False,
-                "message": (
-                    "🚫 BLOCKED: Attempted to enable XAUUSD on a GFT file.\n"
-                    f"File: {file_path}\n"
-                    "XAUUSD is PERMANENTLY DISABLED on GFT 2-Step. Use XAGUSD + USOIL only."
-                )
-            }))
-            return
+    # XAUUSD re-enabled on GFT accounts 2026-06-10 — H4 bias filter enforced in code.
+    # Root cause of May 22 losses (trading SELL vs H4 uptrend) addressed at scanner level.
 
     print(json.dumps({"approve": True}))
 

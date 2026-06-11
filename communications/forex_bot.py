@@ -144,7 +144,7 @@ def _cmd_start():
         _send(
             "<b>CB6 QUANTUM — GFT $10K INSTANT</b>\n\n"
             "Markets  : Silver (XAGUSD) | Oil (USOIL)\n"
-            "           Gold (XAUUSD) ⛔ PERMANENTLY DISABLED\n"
+            "           Gold (XAUUSD) — H4 bias filter enforced\n"
             "Strategy : ICT Silver Bullet · 15-min candles\n"
             "Platform : MetaTrader 5 — GFT $10K Instant\n\n"
             f"<b>ACCOUNT</b>\n"

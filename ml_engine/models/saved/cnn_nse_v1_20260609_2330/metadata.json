@@ -1,0 +1,21 @@
+{
+  "candle_window": 50,
+  "h_pixels": 64,
+  "use_volume": true,
+  "dropout": 0.4,
+  "is_trained": true,
+  "version_id": "cnn_nse_v1_20260609_2330",
+  "engine": "nse",
+  "trained_at": "20260609_2330",
+  "train_samples": 604,
+  "val_samples": 151,
+  "data_source": "synthetic",
+  "research_only": true,
+  "history_last5": [
+    4.9653,
+    4.8425,
+    4.9332,
+    4.8864,
+    4.6915
+  ]
+}

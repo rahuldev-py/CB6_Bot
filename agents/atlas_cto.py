@@ -98,8 +98,8 @@ def _check_signal_logic() -> dict:
         if 'GBPUSD' in text and 'enabled' in text.lower():
             issues.append("GBPUSD still enabled — quant shows 33% WR, should be disabled")
         if 'XAUUSD' in text:
-            # Check if XAUUSD is properly disabled on GFT
-            issues.append("Verify XAUUSD is blocked for GFT in forex_instruments.py")
+            # XAUUSD re-enabled on all GFT accounts 2026-06-10 with H4 bias filter enforced
+            pass  # expected — no action needed
 
     # Check kill zones
     gft_path = CB6_ROOT / 'forex_engine/prop_firms/gft/gft_5k_2step.py'

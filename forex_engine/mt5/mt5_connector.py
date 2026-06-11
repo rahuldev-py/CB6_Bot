@@ -159,7 +159,12 @@ class MT5Connector:
         if not _MT5_AVAILABLE:
             return False
         try:
-            return mt5.terminal_info() is not None
+            info = mt5.terminal_info()
+            if info is None:
+                return False
+            # terminal_info() only checks local API bridge — not broker connectivity.
+            # connected=True means the terminal has an active broker session.
+            return bool(getattr(info, 'connected', False))
         except Exception:
             return False
 
@@ -169,7 +174,8 @@ class MT5Connector:
         if self.is_connected():
             return True
 
-        logger.warning("MT5 connection lost — attempting reconnect...")
+        login = int((self._credentials or {}).get('login', os.getenv('MT5_LOGIN', '0')))
+        logger.warning(f"MT5 broker session lost (login={login}) — attempting reconnect...")
         for attempt in range(1, max_retries + 1):
             try:
                 _t = threading.Thread(target=mt5.shutdown, daemon=True)
@@ -178,7 +184,15 @@ class MT5Connector:
                 time.sleep(2)
                 self._connect()
                 if self.is_connected():
-                    logger.info(f"MT5 reconnected on attempt {attempt}")
+                    logger.info(f"MT5 reconnected on attempt {attempt} (login={login})")
+                    try:
+                        from communications.forex_bot import send_alert as _mt5_alert
+                        _mt5_alert(
+                            f"🟢 <b>MT5 Reconnected</b>\n"
+                            f"Login <code>{login}</code> restored on attempt {attempt}."
+                        )
+                    except Exception:
+                        pass
                     return True
             except Exception as e:
                 logger.error(f"MT5 reconnect attempt {attempt} failed: {e}")

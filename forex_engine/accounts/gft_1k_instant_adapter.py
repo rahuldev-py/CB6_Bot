@@ -54,7 +54,10 @@ def _probe_gft_1k_symbols(terminal_path: str, credentials: dict) -> dict:
             else:
                 logger.info(f"[GFT_1K] symbol probe: {canonical} → {found} (plain, no override needed)")
 
-        mt5.shutdown()
+        # Do NOT call mt5.shutdown() here — it logs out the broker session.
+        # MT5Connector._connect() calls mt5.initialize() next; if the session is
+        # already open with the same credentials it returns True immediately and
+        # reuses the connection without triggering a second broker login.
     except Exception as e:
         logger.warning(f"[GFT_1K] symbol probe failed ({e}) — falling back to plain names")
         return {"USOIL.cash": "USOIL"}
@@ -74,39 +77,27 @@ def build_gft_1k_instant_connector(paper: Optional[bool] = None):
         logger.info(f"[{account_id}] Paper mode - building paper MT5Connector")
         return MT5Connector(paper=True)
 
-    # Retry up to 15 times (30s total) — MT5 self-update can take up to 20-30s.
-    terminal_path = None
-    import time as _time
-    for _attempt in range(15):
-        terminal_path = get_terminal_path(account_id)
-        if terminal_path:
-            break
-        _time.sleep(2)
-    credentials = get_credentials(account_id)
+    import os as _os
 
-    if not terminal_path:
-        import os as _os
-        # Diagnose: show which env var and config path were checked
-        cfg_terminal = "C:/CB6_MT5/MT5_GFT_1K/terminal64.exe"
-        env_key      = "GFT_1K_MT5_TERMINAL_PATH"
-        env_val      = _os.getenv(env_key, "NOT SET")
-        diag = (
-            f"env {env_key}={env_val!r} "
-            f"| config={cfg_terminal!r} "
-            f"| config_exists={_os.path.isfile(cfg_terminal.replace('/', _os.sep))}"
-        )
-        logger.error(f"[{account_id}] terminal path resolution failed — {diag}")
-        _send_telegram_alert(
-            "wrong_account_server_block",
-            f"[{account_id}] live startup blocked: dedicated terminal path missing\n{diag}",
-        )
-        raise RuntimeError(
-            f"[{account_id}] dedicated terminal path is required for live startup — {diag}"
-        )
+    # Resolve terminal path directly from env var — do NOT gate on os.path.isfile().
+    # The pre-check was intermittently returning False on Windows even when the file
+    # exists (MT5 terminal initialising, OS file-system flush, anti-virus scan).
+    # mt5.initialize() is the real gatekeeper; let it report any actual I/O failure.
+    _FALLBACK_PATH = "C:/CB6_MT5/MT5_GFT_1K/terminal64.exe"
+    _env_val  = _os.getenv("GFT_1K_MT5_TERMINAL_PATH", "").strip()
+    _raw_path = _env_val or _FALLBACK_PATH
+    terminal_path = _raw_path.replace("/", _os.sep)
+
+    logger.info(
+        f"[{account_id}] terminal path resolved: {terminal_path!r} "
+        f"(exists={_os.path.isfile(terminal_path)})"
+    )
+
+    credentials = get_credentials(account_id)
     if not credentials:
         _send_telegram_alert(
             "wrong_account_server_block",
-            f"[{account_id}] live startup blocked: credentials missing",
+            f"[{account_id}] live startup blocked: credentials missing in .env",
         )
         raise RuntimeError(f"[{account_id}] credentials missing")
 

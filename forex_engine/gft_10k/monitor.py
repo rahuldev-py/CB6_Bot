@@ -105,16 +105,25 @@ class GFT10KWorker:
         h1_bias   = get_h1_bias(self._connector, symbol)
         h4_bias   = get_h4_bias(self._connector, symbol)
 
+        # H4 direction gate — XAUUSD only (same rule as GFT 2-Step).
+        # XAGUSD/USOIL: H4 is informational, not a direction block.
         if h4_bias not in ("RANGING", direction):
-            _wc = int(setup.get('wave_count', 0) or 0)
-            _sw = bool(setup.get('sweep_confirmed', False))
-            if _wc >= 3 and _sw:
-                logger.info(f"GFT 10K {symbol}: counter-H4 ALLOWED — 3-wave wave={_wc} HALF SIZE")
-                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
-                setup['t1_only']         = True
+            _xauusd_gate = 'XAUUSD' in symbol.upper()
+            if _xauusd_gate:
+                _wc = int(setup.get('wave_count', 0) or 0)
+                _sw = bool(setup.get('sweep_confirmed', False))
+                if _wc >= 3 and _sw:
+                    logger.info(f"GFT 10K {symbol}: counter-H4 ALLOWED — 3-wave wave={_wc} HALF SIZE")
+                    setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                    setup['t1_only']         = True
+                else:
+                    logger.info(f"GFT 10K {symbol}: counter-H4 SKIP wave={_wc} sweep={_sw} H4={h4_bias}")
+                    return
             else:
-                logger.info(f"GFT 10K {symbol}: counter-H4 SKIP wave={_wc} sweep={_sw} H4={h4_bias}")
-                return
+                logger.info(
+                    f"GFT 10K {symbol}: H4={h4_bias} vs {direction} "
+                    f"(informational — H4 gate is XAUUSD-only, {symbol} proceeds)"
+                )
 
         if h1_bias not in ("RANGING", direction):
             _wc = int(setup.get('wave_count', 0) or 0)
@@ -176,7 +185,13 @@ class GFT10KWorker:
                 logger.error(f"GFT 10K {symbol}: MT5 order failed")
                 return
             self._update_ticket(trade["id"], result.get("ticket", 0))
-            logger.info(f"GFT 10K {symbol}: executed ticket={result.get('ticket',0)} lots={lots:.2f}")
+            ticket = result.get("ticket", 0)
+            logger.info(f"GFT 10K {symbol}: executed ticket={ticket} lots={lots:.2f}")
+            self._alert(
+                f"<b>GFT 10K — TRADE EXECUTED</b>\n"
+                f"{symbol} {direction}  {lots:.2f}L  risk=${risk_usd:.2f}\n"
+                f"Entry={signal['entry']}  SL={signal['stop_loss']}  ticket={ticket}"
+            )
 
     def _open_trade_state(self, setup: dict, lots: float, risk_usd: float) -> dict:
         state  = reset_daily_if_needed(load_state())
@@ -220,6 +235,65 @@ class GFT10KWorker:
                 save_state(state)
                 return
 
+    def _alert(self, text: str) -> None:
+        try:
+            from communications.forex_bot import send_alert as _sa
+            _sa(text)
+        except Exception as exc:
+            logger.debug(f"GFT 10K Telegram alert skipped: {exc}")
+
+    def _position_monitor_loop(self):
+        """Polls MT5 every 15s — detects SL/TP hits on open trades and sends Telegram alert."""
+        while self._running:
+            try:
+                state = load_state()
+                open_trades = state.get("open_trades", [])
+                if open_trades and not self._paper:
+                    live_tickets = set()
+                    try:
+                        positions    = self._connector.get_open_positions()
+                        live_tickets = {str(p.get("ticket", 0)) for p in (positions or [])}
+                    except Exception:
+                        pass
+                    closed_now = [t for t in open_trades
+                                  if str(t.get("ticket", 0)) not in ("0", "") and
+                                  str(t.get("ticket", 0)) not in live_tickets]
+                    if closed_now:
+                        for trade in closed_now:
+                            sym   = trade.get("symbol", "?")
+                            dire  = trade.get("direction", "?")
+                            entry = trade.get("entry_price", 0)
+                            sl    = trade.get("stop_loss", 0)
+                            tp    = trade.get("target", 0)
+                            lots  = trade.get("lots", 0)
+                            try:
+                                tick     = self._connector.get_tick(sym)
+                                close_px = tick.bid if dire == "BULLISH" else tick.ask if tick else 0
+                            except Exception:
+                                close_px = 0
+                            if close_px and sl:
+                                hit = "SL" if (
+                                    (dire == "BULLISH" and close_px <= float(sl) * 1.001) or
+                                    (dire == "BEARISH" and close_px >= float(sl) * 0.999)
+                                ) else "TP"
+                            else:
+                                hit = "CLOSED"
+                            pnl_est = ""
+                            if close_px and entry:
+                                pnl_est = f"  ~${round((close_px - float(entry)) * float(lots) * (100 if 'XAU' in sym else 1000) * (1 if dire == 'BULLISH' else -1), 2):+.2f}"
+                            self._alert(
+                                f"<b>GFT 10K — {hit}</b>\n"
+                                f"{sym} {dire}  {lots}L  @ {close_px:.2f}{pnl_est}\n"
+                                f"entry={entry}  SL={sl}  ticket={trade.get('ticket')}"
+                            )
+                            logger.info(f"GFT 10K {sym}: {hit} detected ticket={trade.get('ticket')}")
+                        closed_ids           = {t["id"] for t in closed_now}
+                        state["open_trades"] = [t for t in open_trades if t["id"] not in closed_ids]
+                        save_state(state)
+            except Exception as exc:
+                logger.debug(f"GFT 10K position monitor: {exc}")
+            time.sleep(15)
+
     def _heartbeat_loop(self):
         while self._running:
             try:
@@ -241,7 +315,8 @@ class GFT10KWorker:
         logger.info(f"Mode      : {'Paper' if self._paper else 'LIVE — GFT $10K'}")
         logger.info("=" * 55)
 
-        threading.Thread(target=self._heartbeat_loop, daemon=True, name="GFT10KHeartbeat").start()
+        threading.Thread(target=self._heartbeat_loop,       daemon=True, name="GFT10KHeartbeat").start()
+        threading.Thread(target=self._position_monitor_loop, daemon=True, name="GFT10KPositionMonitor").start()
 
         try:
             from communications.forex_bot import set_adapter as _set_bot_adapter

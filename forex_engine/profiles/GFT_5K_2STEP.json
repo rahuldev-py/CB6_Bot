@@ -8,16 +8,17 @@
   "currency": "USD",
   "mode": "live",
 
-  "symbols": ["XAGUSD", "USOIL"],
-  "disabled_symbols": ["XAUUSD"],
+  "symbols": ["XAUUSD", "XAGUSD", "USOIL"],
+  "disabled_symbols": [],
+  "max_lot_per_symbol": {"XAUUSD": 0.05, "XAGUSD": 0.10, "USOIL": 0.10},
 
   "risk": {
-    "normal_risk_pct": 0.20,
-    "reduced_risk_pct": 0.10,
-    "max_risk_pct": 0.25,
-    "normal_risk_usd": 10.0,
-    "reduced_risk_usd": 5.0,
-    "max_risk_usd": 12.50
+    "normal_risk_pct": 0.50,
+    "reduced_risk_pct": 0.25,
+    "max_risk_pct": 0.75,
+    "normal_risk_usd": 24.75,
+    "reduced_risk_usd": 12.38,
+    "max_risk_usd": 37.13
   },
 
   "limits": {
@@ -48,18 +49,17 @@
   },
 
   "internal_guards": {
-    "daily_warning_usd": 120.0,
-    "daily_risk_cut_usd": 150.0,
-    "daily_hard_stop_usd": 180.0,
-    "total_warning_usd": 300.0,
-    "total_risk_cut_usd": 400.0,
-    "total_hard_stop_usd": 450.0
+    "daily_warning_usd": 100.0,
+    "daily_risk_cut_usd": 140.0,
+    "daily_hard_stop_usd": 170.0,
+    "total_warning_usd": 250.0,
+    "total_risk_cut_usd": 350.0,
+    "total_hard_stop_usd": 430.0
   },
 
   "kill_zones_utc": [
-    {"start": 8, "end": 9, "label": "London Open"},
-    {"start": 15, "end": 16, "label": "NY Pre-Open"},
-    {"start": 19, "end": 20, "label": "NY Afternoon"}
+    {"start": 7, "end": 12, "label": "London"},
+    {"start": 16, "end": 20, "label": "NY"}
   ],
 
   "aplus_boost": {

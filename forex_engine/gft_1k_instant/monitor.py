@@ -134,31 +134,38 @@ class GFT1KInstantWorker:
         setup = scan_setup(df, symbol, min_rr=_P["min_rr"], h4_bias=_h4_pre)
         if not setup:
             return
-        self._alert("trade_signal_received", f"{symbol} setup received")
+        logger.info(f"GFT 1K Instant {symbol}: setup found score={setup.get('confluence', '?')}")
 
         signal = setup["entry_signal"]
         direction = setup["direction"]
         h1_bias = get_h1_bias(self._connector, symbol)
         h4_bias = get_h4_bias(self._connector, symbol)
 
-        # H4 — 3-wave reversal rule (not a hard gate on direction).
-        # Counter-H4 allowed only when 3 impulse waves complete + sweep confirmed.
+        # H4 direction gate — XAUUSD only (same rule as GFT 2-Step).
+        # XAGUSD/USOIL: H4 is informational, not a direction block.
         if h4_bias not in ("RANGING", direction):
-            _wc_h4 = int(setup.get('wave_count', 0) or 0)
-            _sw_h4 = bool(setup.get('sweep_confirmed', False))
-            if _wc_h4 >= 3 and _sw_h4:
-                logger.info(
-                    f"GFT 1K Instant {symbol}: counter-H4 ALLOWED — 3-wave reversal "
-                    f"wave={_wc_h4} H4={h4_bias} HALF SIZE"
-                )
-                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
-                setup['t1_only']         = True
+            _xauusd_gate = 'XAUUSD' in symbol.upper()
+            if _xauusd_gate:
+                _wc_h4 = int(setup.get('wave_count', 0) or 0)
+                _sw_h4 = bool(setup.get('sweep_confirmed', False))
+                if _wc_h4 >= 3 and _sw_h4:
+                    logger.info(
+                        f"GFT 1K Instant {symbol}: counter-H4 ALLOWED — 3-wave reversal "
+                        f"wave={_wc_h4} H4={h4_bias} HALF SIZE"
+                    )
+                    setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                    setup['t1_only']         = True
+                else:
+                    logger.info(
+                        f"GFT 1K Instant {symbol}: counter-H4 SKIP — 3-wave not complete "
+                        f"wave={_wc_h4} sweep={_sw_h4} H4={h4_bias}"
+                    )
+                    return
             else:
                 logger.info(
-                    f"GFT 1K Instant {symbol}: counter-H4 SKIP — 3-wave not complete "
-                    f"wave={_wc_h4} sweep={_sw_h4} H4={h4_bias}"
+                    f"GFT 1K Instant {symbol}: H4={h4_bias} vs {direction} "
+                    f"(informational — H4 gate is XAUUSD-only, {symbol} proceeds)"
                 )
-                return
 
         # Wave exhaustion tag (5-6 waves)
         _wc_now = int(setup.get('wave_count', 0) or 0)
@@ -225,20 +232,15 @@ class GFT1KInstantWorker:
         ok, reason = validate_entry(setup, lots, risk_usd, state)
         if not ok:
             logger.info(f"GFT 1K Instant {symbol}: BLOCKED - {reason}")
-            self._alert("trade_blocked", f"{symbol} blocked: {reason}")
             return
 
         lock_state = load_lock_state()
         if lock_state.get("locked"):
             reason = lock_state.get("reason") or "telegram lock active"
             logger.info(f"GFT 1K Instant {symbol}: BLOCKED - {reason}")
-            self._alert("trade_blocked", f"{symbol} blocked: {reason}")
             return
 
-        self._alert(
-            "trade_approved",
-            f"{symbol} {direction} approved at {lots:.2f}L risk=${risk_usd:.2f}",
-        )
+        logger.info(f"GFT 1K Instant {symbol}: {direction} approved {lots:.2f}L risk=${risk_usd:.2f}")
         trade = self._open_trade_state(setup, lots, risk_usd)
         if not trade:
             return
@@ -323,6 +325,62 @@ class GFT1KInstantWorker:
         except Exception:
             logger.debug(f"GFT 1K Instant alert skipped: {alert_type}")
 
+    def _position_monitor_loop(self):
+        """Polls MT5 every 15s — detects SL/TP hits on open trades and sends Telegram alert."""
+        while self._running:
+            try:
+                state = load_state()
+                open_trades = state.get("open_trades", [])
+                if open_trades and not self._paper:
+                    live_tickets = set()
+                    try:
+                        positions = self._connector.get_open_positions()
+                        live_tickets = {str(p.get("ticket", 0)) for p in (positions or [])}
+                    except Exception:
+                        pass
+                    closed_now = []
+                    for trade in open_trades:
+                        ticket = str(trade.get("ticket", 0))
+                        if ticket and ticket != "0" and ticket not in live_tickets:
+                            closed_now.append(trade)
+                    if closed_now:
+                        for trade in closed_now:
+                            sym   = trade.get("symbol", "?")
+                            dire  = trade.get("direction", "?")
+                            entry = trade.get("entry_price", 0)
+                            sl    = trade.get("stop_loss", 0)
+                            tp    = trade.get("target", 0)
+                            lots  = trade.get("lots", 0)
+                            try:
+                                tick = self._connector.get_tick(sym)
+                                close_px = tick.bid if dire == "BULLISH" else tick.ask if tick else 0
+                            except Exception:
+                                close_px = 0
+                            if close_px and sl:
+                                mid_sl_tp = (float(sl) + float(tp)) / 2 if tp else float(sl)
+                                hit = "SL" if (
+                                    (dire == "BULLISH" and close_px <= float(sl) * 1.001) or
+                                    (dire == "BEARISH" and close_px >= float(sl) * 0.999)
+                                ) else "TP"
+                            else:
+                                hit = "CLOSED"
+                            pnl_est = ""
+                            if close_px and entry:
+                                pip_val = 0.1 if "XAU" in sym else 0.01
+                                pnl_est = f"  ~${round((close_px - float(entry)) * float(lots) * (100 if 'XAU' in sym else 1000) * (1 if dire == 'BULLISH' else -1), 2):+.2f}"
+                            self._alert(
+                                "sl_hit" if hit == "SL" else "tp_hit",
+                                f"{sym} {dire} {hit} @ {close_px:.2f}{pnl_est}  entry={entry}  SL={sl}  lots={lots}L"
+                            )
+                            logger.info(f"GFT 1K Instant {sym}: {hit} detected ticket={trade.get('ticket')}")
+                        # Remove closed trades from state
+                        closed_ids = {t["id"] for t in closed_now}
+                        state["open_trades"] = [t for t in open_trades if t["id"] not in closed_ids]
+                        save_state(state)
+            except Exception as exc:
+                logger.debug(f"GFT 1K position monitor: {exc}")
+            time.sleep(15)
+
     def _heartbeat_loop(self):
         while self._running:
             try:
@@ -357,6 +415,11 @@ class GFT1KInstantWorker:
             target=self._heartbeat_loop,
             daemon=True,
             name="GFT1KHeartbeat",
+        ).start()
+        threading.Thread(
+            target=self._position_monitor_loop,
+            daemon=True,
+            name="GFT1KPositionMonitor",
         ).start()
 
         self._connector.start_polling(

@@ -43,7 +43,7 @@ def _banner(profile: str, mode: str, symbols: str | None = None):
     if symbols:
         logger.info(f"Symbols  : {symbols}")
     else:
-        logger.info("Symbols  : XAGUSD 53% WR PF5.34 | USOIL 69% WR PF8.43 | (XAUUSD disabled)")
+        logger.info("Symbols  : XAUUSD (H4 bias req) | XAGUSD | USOIL")
     logger.info("Sessions : London 07-12 UTC | NY 16-20 UTC")
     logger.info("ATR T1   : Entry +/- 0.15*ATR_daily  |  T2 skip if >0.50*ATR_daily")
     logger.info("=" * 60)

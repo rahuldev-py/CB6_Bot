@@ -1697,7 +1697,7 @@ def run_silver_bullet_scan():
                 continue
 
             from scanner.data_fetcher import inject_live_tick as _inj
-            df = _inj(df, symbol)
+            df = _inj(df, symbol, fyers=fyers_instance)
 
             setup = scan_silver_bullet(df, symbol, tf='3', fyers=fyers_instance)
 
@@ -2106,7 +2106,7 @@ def _nifty_live_scanner_inner():
                 # may be up to 3 min old; tick makes last-bar close/high/low current.
 
                 from scanner.data_fetcher import inject_live_tick as _inj
-                df = _inj(df, symbol)
+                df = _inj(df, symbol, fyers=fyers_instance)
 
 
 
@@ -3768,6 +3768,21 @@ def main():
             time.sleep(60)
 
     threading.Thread(target=_nse_heartbeat_loop, daemon=True, name="NSEHeartbeat").start()
+
+    # Nifty 50 Top-10 watchlist monitor — 5m/15m/30m/1H analysis, alerts to NSE bot
+    # Isolated from 15s futures scan cycle; analysis-only, no equity orders
+    try:
+        from utils.watchlist_monitor import start as _start_watchlist
+        _start_watchlist(lambda: fyers_instance)
+    except Exception as _wl_err:
+        logger.warning(f"Watchlist monitor failed to start: {_wl_err}")
+
+    # Trade tracker — monitors open watchlist setups vs entry/SL/T1/T2, sends live updates
+    try:
+        from utils.trade_tracker import start as _start_tracker
+        _start_tracker(lambda: fyers_instance)
+    except Exception as _tt_err:
+        logger.warning(f"Trade tracker failed to start: {_tt_err}")
 
 
 

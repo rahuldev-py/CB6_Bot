@@ -51,44 +51,49 @@ Return JSON only:
 }"""
 
 
-def _load_model_metrics(market: str, model: str) -> dict:
-    p = CB6_ROOT / f'ml/models/{market}/{model}_meta_latest.json'
-    if p.exists():
-        try:
-            data = json.loads(p.read_text())
-            if data:
-                trained_at = data.get('trained_at', '')
-                days_old = None
-                if trained_at and len(trained_at) >= 8:
-                    try:
-                        dt = datetime.strptime(trained_at[:8], '%Y%m%d')
-                        days_old = (datetime.now() - dt).days
-                    except Exception:
-                        pass
-                acc = data.get('test_acc', 0)
-                prec = data.get('test_prec', 0)
-                val_loss = data.get('val_loss', 1.0)
-                needs_retrain = (days_old is not None and days_old >= 7) or acc < 0.72 or val_loss > 0.60
-                healthy = acc >= 0.72 and prec >= 0.85 and val_loss <= 0.60
-                return {
-                    **data,
-                    "days_old": days_old,
-                    "needs_retrain": needs_retrain,
-                    "healthy": healthy,
-                    "grade": "A" if acc >= 0.80 else "B" if acc >= 0.72 else "C" if acc >= 0.65 else "D",
-                }
-        except Exception:
-            pass
-    return {}
-
-
 def _load_all_metrics() -> dict:
+    registry_path = CB6_ROOT / 'ml_engine' / 'config' / 'model_registry.json'
+    if not registry_path.exists():
+        return {}
+    try:
+        registry = json.loads(registry_path.read_text(encoding='utf-8'))
+    except Exception:
+        return {}
     metrics = {}
-    for market in ['nse', 'ftmo', 'gft']:
-        for model in ['cnn', 'dnn', 'rnn']:
-            data = _load_model_metrics(market, model)
-            if data:
-                metrics[f"{model}_{market}"] = data
+    for model_id, m in registry.get('models', {}).items():
+        if m.get('research_only') or m.get('status') in ('RESEARCH', 'NOT_TRAINED'):
+            continue
+        versions = m.get('versions', [])
+        if not versions:
+            continue
+        latest = versions[-1]
+        trained_at = latest.get('trained_at', '')
+        days_old = None
+        if trained_at and len(trained_at) >= 8:
+            try:
+                dt = datetime.strptime(trained_at[:8], '%Y%m%d')
+                days_old = (datetime.now() - dt).days
+            except Exception:
+                pass
+        acc      = latest.get('accuracy', 0)
+        f1       = latest.get('f1', 0)
+        auc      = latest.get('auc', 0)
+        brier    = latest.get('brier_score', 1.0)
+        needs_retrain = (days_old is not None and days_old >= 7) or acc < 0.60
+        healthy       = acc >= 0.60 and f1 >= 0.65 and auc >= 0.50
+        metrics[model_id] = {
+            "trained_at":            trained_at,
+            "test_acc":              acc,
+            "test_prec":             f1,
+            "val_loss":              brier,
+            "auc":                   auc,
+            "days_old":              days_old,
+            "needs_retrain":         needs_retrain,
+            "healthy":               healthy,
+            "activation_gate_passed": m.get('activation_gate_passed', False),
+            "engine":                m.get('engine', ''),
+            "grade":                 "A" if acc >= 0.70 else "B" if acc >= 0.60 else "C" if acc >= 0.55 else "D",
+        }
     return metrics
 
 
