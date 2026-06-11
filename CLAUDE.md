@@ -133,8 +133,8 @@ c:\cb6_bot\
 - **Kill zones:** London 07-12 UTC | NY 16-20 UTC
 - **Entry pattern:** Sweep DOL → CHoCH → FVG fill
 - **A+ setup:** ≥55% similarity score → 1.25× lots | ≥70% → 1.5× | ≥85% → 2×
-- **XAUUSD:** PERMANENTLY DISABLED on all GFT accounts. No exceptions.
-- **GFT $5K + GFT $1K Instant:** XAGUSD + USOIL only
+- **XAUUSD:** Re-enabled on all GFT accounts as of 2026-06-09. H4 bias filter mandatory before every Gold entry. Per-account max lots: $10K→0.10, $5K→0.05, $1K→0.01 (engine auto-skips $1K if SL too wide).
+- **GFT $5K + GFT $1K Instant:** XAUUSD + XAGUSD + USOIL active
 - **FTMO (deprioritized):** XAGUSD, USOIL, EURUSD — runs as-is, no active tuning
 - **H4 bias filter:** Required before any trade entry
 - **News blackout:** No entries within 30 min of high-impact news
@@ -201,5 +201,5 @@ python -c "import ast; ast.parse(open('file.py', encoding='utf-8').read()); prin
 - **GFT poll speed:** Must be 15s (not 30s/60s)
 - **GFT kill zones:** Must be `[(7,12),(16,20)]` — NOT the old narrow `[(8,9),(15,16),(19,20)]`
 - **GFT $1K Instant:** `CB6_GFT_1K_INSTANT_ENABLED` + `CB6_GFT_1K_INSTANT_LIVE_EXECUTION` must both be `true` for live trading
-- **XAUUSD on GFT:** PERMANENTLY DISABLED — `disabled_symbols` in both GFT configs, never remove
+- **XAUUSD on GFT:** Re-enabled 2026-06-09 with H4 bias filter. Max lots enforced per account. Never disable the H4 filter.
 - **SL buffer:** Always sweep wick extreme + 10-15pt for NSE, never tight 5pt

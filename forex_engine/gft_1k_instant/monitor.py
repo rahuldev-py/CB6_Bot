@@ -39,6 +39,9 @@ from forex_engine.gft_1k_instant.state import (
 )
 from forex_engine.scanner.signal_scanner import scan_setup, in_rollover_window
 from forex_engine.scanner.structure_scanner import get_h1_bias, get_h4_bias
+from forex_engine.scanner.mtf_scanner import scan_mtf_cascade
+from forex_engine.scanner.adaptive_gate import evaluate_adaptive_gate as _eval_ag, log_gate_decision as _log_ag
+from settings import CB6_ADAPTIVE_TRADE_GATE_ENABLED as _ADAPTIVE_GATE_ENABLED
 from forex_engine.trade.duplicate_guard import DuplicateGuard
 from forex_engine.trade.lot_calculator import calc_lot_size, dollar_risk, cap_lots_for_account
 
@@ -133,7 +136,9 @@ class GFT1KInstantWorker:
             return
         setup = scan_setup(df, symbol, min_rr=_P["min_rr"], h4_bias=_h4_pre)
         if not setup:
-            return
+            setup = scan_mtf_cascade(self._connector, symbol, h4_bias=_h4_pre, min_rr=_P["min_rr"])
+            if not setup:
+                return
         logger.info(f"GFT 1K Instant {symbol}: setup found score={setup.get('confluence', '?')}")
 
         signal = setup["entry_signal"]
@@ -141,31 +146,71 @@ class GFT1KInstantWorker:
         h1_bias = get_h1_bias(self._connector, symbol)
         h4_bias = get_h4_bias(self._connector, symbol)
 
-        # H4 direction gate — XAUUSD only (same rule as GFT 2-Step).
-        # XAGUSD/USOIL: H4 is informational, not a direction block.
-        if h4_bias not in ("RANGING", direction):
-            _xauusd_gate = 'XAUUSD' in symbol.upper()
-            if _xauusd_gate:
-                _wc_h4 = int(setup.get('wave_count', 0) or 0)
-                _sw_h4 = bool(setup.get('sweep_confirmed', False))
-                if _wc_h4 >= 3 and _sw_h4:
+        # HTF gate — adaptive or legacy path.
+        _adaptive_size_mult_1k = float(setup.get('size_multiplier', 1.0) or 1.0)
+        if _ADAPTIVE_GATE_ENABLED:
+            _adg_1k = _eval_ag(setup, h4_bias, h1_bias, utc_hour)
+            _log_ag(symbol, _adg_1k)
+            if not _adg_1k.trade_allowed:
+                logger.info(
+                    f"GFT 1K Instant {symbol}: adaptive gate {_adg_1k.decision} — "
+                    f"{_adg_1k.soft_gate_reasons or _adg_1k.hard_block_reasons}"
+                )
+                return
+            _adaptive_size_mult_1k = _adg_1k.size_multiplier
+            if _adg_1k.t1_only:
+                setup['t1_only'] = True
+        else:
+            # LEGACY path
+            if setup.get('mtf_cascade'):
+                logger.info(
+                    f"GFT 1K Instant {symbol}: MTF cascade path — "
+                    f"HTF gates bypassed (size={setup.get('size_multiplier',1.0):.1f}x "
+                    f"t1_only={setup.get('t1_only',False)} tfs={setup.get('cascade_tfs',[])})"
+                )
+            elif h4_bias not in ("RANGING", direction):
+                _xauusd_gate = 'XAUUSD' in symbol.upper()
+                if _xauusd_gate:
+                    _wc_h4 = int(setup.get('wave_count', 0) or 0)
+                    _sw_h4 = bool(setup.get('sweep_confirmed', False))
+                    if _wc_h4 >= 3 and _sw_h4:
+                        logger.info(
+                            f"GFT 1K Instant {symbol}: counter-H4 ALLOWED — 3-wave reversal "
+                            f"wave={_wc_h4} H4={h4_bias} HALF SIZE"
+                        )
+                        setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                        setup['t1_only']         = True
+                    else:
+                        logger.info(
+                            f"GFT 1K Instant {symbol}: counter-H4 SKIP — 3-wave not complete "
+                            f"wave={_wc_h4} sweep={_sw_h4} H4={h4_bias}"
+                        )
+                        return
+                else:
                     logger.info(
-                        f"GFT 1K Instant {symbol}: counter-H4 ALLOWED — 3-wave reversal "
-                        f"wave={_wc_h4} H4={h4_bias} HALF SIZE"
+                        f"GFT 1K Instant {symbol}: H4={h4_bias} vs {direction} "
+                        f"(informational — H4 gate is XAUUSD-only, {symbol} proceeds)"
+                    )
+
+            # H1 — 3-wave exception
+            _wc = int(setup.get('wave_count', 0) or 0)
+            _sw = bool(setup.get('sweep_confirmed', False))
+            if h1_bias not in ("RANGING", direction):
+                if _wc >= 3 and _sw:
+                    logger.info(
+                        f"GFT 1K Instant {symbol}: 3-WAVE counter-H1 allowed "
+                        f"wave={_wc} HALF SIZE T1-only"
                     )
                     setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
                     setup['t1_only']         = True
+                    setup['reversal_3wave']  = True
                 else:
                     logger.info(
-                        f"GFT 1K Instant {symbol}: counter-H4 SKIP — 3-wave not complete "
-                        f"wave={_wc_h4} sweep={_sw_h4} H4={h4_bias}"
+                        f"GFT 1K Instant {symbol}: H1 block — H1={h1_bias} "
+                        f"wave={_wc} (need ≥3 + sweep)"
                     )
                     return
-            else:
-                logger.info(
-                    f"GFT 1K Instant {symbol}: H4={h4_bias} vs {direction} "
-                    f"(informational — H4 gate is XAUUSD-only, {symbol} proceeds)"
-                )
+            _adaptive_size_mult_1k = float(setup.get('size_multiplier', 1.0) or 1.0)
 
         # Wave exhaustion tag (5-6 waves)
         _wc_now = int(setup.get('wave_count', 0) or 0)
@@ -194,19 +239,6 @@ class GFT1KInstantWorker:
             except Exception:
                 pass
 
-        # H1 — 3-wave exception: counter-H1 allowed when wave≥3 + sweep confirmed
-        _wc = int(setup.get('wave_count', 0) or 0)
-        _sw = bool(setup.get('sweep_confirmed', False))
-        if h1_bias not in ("RANGING", direction):
-            if _wc >= 3 and _sw:
-                logger.info(f"GFT 1K Instant {symbol}: 3-WAVE counter-H1 allowed wave={_wc} HALF SIZE T1-only")
-                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
-                setup['t1_only']         = True
-                setup['reversal_3wave']  = True
-            else:
-                logger.info(f"GFT 1K Instant {symbol}: H1 block — H1={h1_bias} wave={_wc} (need ≥3 + sweep)")
-                return
-
         fvg_low = signal.get("fvg_low")
         if self._dedup.is_duplicate(symbol, direction, fvg_low):
             return
@@ -226,6 +258,9 @@ class GFT1KInstantWorker:
             _P["risk_per_trade_pct"],
         )
         lots = cap_lots_for_account(symbol, round(lots, 2), _P)
+        min_lot_1k = INSTRUMENTS.get(symbol, {}).get('min_lot', 0.01)
+        if _adaptive_size_mult_1k < 1.0:
+            lots = max(min_lot_1k, round(lots * _adaptive_size_mult_1k, 2))
         risk_usd = dollar_risk(symbol, lots, signal["entry"], signal["stop_loss"])
         risk_usd = min(risk_usd, _P["max_risk_usd"])
 
@@ -239,6 +274,21 @@ class GFT1KInstantWorker:
             reason = lock_state.get("reason") or "telegram lock active"
             logger.info(f"GFT 1K Instant {symbol}: BLOCKED - {reason}")
             return
+
+        # Price proximity check — skip if LTP has drifted >25% of SL distance from FVG entry.
+        if not self._paper:
+            _cur_px_1k = self._connector.get_price(symbol)
+            if _cur_px_1k:
+                _max_drift_1k = abs(signal["entry"] - signal["stop_loss"]) * 0.25
+                _drift_1k     = abs(_cur_px_1k - signal["entry"])
+                if _drift_1k > _max_drift_1k:
+                    logger.info(
+                        f"GFT 1K Instant {symbol}: PRICE DRIFTED — "
+                        f"entry={signal['entry']:.5f} LTP={_cur_px_1k:.5f} "
+                        f"drift={_drift_1k:.5f} > max={_max_drift_1k:.5f}. "
+                        f"Waiting for retrace."
+                    )
+                    return
 
         logger.info(f"GFT 1K Instant {symbol}: {direction} approved {lots:.2f}L risk=${risk_usd:.2f}")
         trade = self._open_trade_state(setup, lots, risk_usd)

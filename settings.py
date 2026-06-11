@@ -127,3 +127,6 @@ CB6_GFT_SOFT_GATE_ENABLED = os.getenv(
 CB6_GFT_HARD_ENFORCEMENT_ENABLED = os.getenv(
     "CB6_GFT_HARD_ENFORCEMENT_ENABLED", "false"
 ).strip().lower() == "true"
+CB6_ADAPTIVE_TRADE_GATE_ENABLED = os.getenv(
+    "CB6_ADAPTIVE_TRADE_GATE_ENABLED", "false"
+).strip().lower() == "true"

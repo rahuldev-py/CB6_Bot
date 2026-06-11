@@ -283,7 +283,7 @@ def get_opening_range(df) -> Optional[Dict]:
 
         today = d.index[-1].date()
         open_start = pd.Timestamp(f"{today} 09:15:00", tz='Asia/Kolkata')
-        open_end   = pd.Timestamp(f"{today} 10:00:00", tz='Asia/Kolkata')
+        open_end   = pd.Timestamp(f"{today} 09:30:00", tz='Asia/Kolkata')  # first 15 min = ICT opening range
         opening    = d[(d.index >= open_start) & (d.index < open_end)]
 
         if opening.empty:
@@ -322,10 +322,9 @@ def opening_range_swept(df, direction: str) -> bool:
         else:
             d.index = d.index.tz_convert('Asia/Kolkata')
         today = d.index[-1].date()
-        post_open = d[d.index >= pd.Timestamp(f"{today} 10:00:00", tz='Asia/Kolkata')]
+        post_open = d[d.index >= pd.Timestamp(f"{today} 09:30:00", tz='Asia/Kolkata')]
         if post_open.empty:
-            # No post-10:00 closed candle yet (scanner fired at exactly 10:00).
-            # Can't confirm sweep — but don't block; let DOL/MSS/FVG chain decide.
+            # No post-9:30 candle yet. Don't block — let DOL/MSS/FVG chain decide.
             return True
         if direction == 'BULLISH':
             return float(post_open['high'].max()) > or_range['high']
@@ -1450,17 +1449,36 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
             # to find the most recent MSS in the expected direction.
             mss_retry = detect_sb_mss(df, direction_hint=expected_mss)
             if mss_retry is None or mss_retry['direction'] != expected_mss:
+                # DOL-flip recovery: the DOL may have already updated after the sweep
+                # completed (e.g. sell-side swept → BULLISH MSS → DOL flips to buy-side).
+                # If liq_sweep is fresh AND agrees with the current MSS direction,
+                # the setup is valid — use liq_sweep direction instead of DOL direction.
+                _dol_recovered = False
+                if (liq_sweep is not None
+                        and liq_sweep.get('candles_ago', 99) <= 12
+                        and liq_sweep['direction'] == mss['direction']):
+                    logger.info(
+                        f"SB {symbol}: DOL-flip recovery — liq_sweep {liq_sweep['direction']} "
+                        f"{liq_sweep['candles_ago']}ca + MSS {mss['direction']} "
+                        f"{mss['candles_ago']}ca (DOL flipped to {dol.get('direction')}) — "
+                        f"proceeding with {liq_sweep['direction']} setup"
+                    )
+                    direction    = liq_sweep['direction']
+                    expected_mss = direction
+                    _dol_recovered = True
+                if not _dol_recovered:
+                    logger.info(
+                        f"SB skip {symbol}: MSS direction {mss['direction']} != expected {expected_mss} "
+                        f"(DOL={dol.get('type')} @ {dol.get('level')} draw={dol.get('direction')}) — "
+                        f"no {expected_mss} MSS found in recency window"
+                    )
+                    return None
+            else:
                 logger.info(
-                    f"SB skip {symbol}: MSS direction {mss['direction']} != expected {expected_mss} "
-                    f"(DOL={dol.get('type')} @ {dol.get('level')} draw={direction}) — "
-                    f"no {expected_mss} MSS found in recency window"
+                    f"SB {symbol}: micro-retrace MSS overridden — using {expected_mss} MSS "
+                    f"{mss_retry['candles_ago']}ca ago (latest was {mss['direction']} {mss['candles_ago']}ca)"
                 )
-                return None
-            logger.info(
-                f"SB {symbol}: micro-retrace MSS overridden — using {expected_mss} MSS "
-                f"{mss_retry['candles_ago']}ca ago (latest was {mss['direction']} {mss['candles_ago']}ca)"
-            )
-            mss = mss_retry
+                mss = mss_retry
         mss_type = mss.get('type', 'BOS')   # extracted early — used by H1 CHoCH override
 
         # Temporal ordering note (NSE path): log when sweep.ca <= mss.ca but do NOT
@@ -2341,3 +2359,56 @@ def format_sb_alert(setup: Dict, tf: str = '5') -> str:
         f"           {opt_detail}\n"
         f"Mode      : Paper Trade"
     )
+
+
+# ── NSE Multi-TF Cascade ──────────────────────────────────────────────────────
+
+def scan_silver_bullet_mtf(
+    fyers,
+    symbol: str,
+    h4_bias: Optional[str] = None,
+    min_rr: float = 2.5,
+) -> Optional[Dict]:
+    """
+    Multi-TF cascade for NSE Silver Bullet engine.
+    Called when the primary scan_silver_bullet() returns None.
+
+    Fetches 1H + 15m + 5m candles from Fyers/TrueData, then runs
+    the same 1H CHoCH → 15m BOS → 5m FVG → price gate chain.
+
+    Returns setup dict compatible with NSE engine format, or None.
+    """
+    try:
+        from scanner.data_fetcher import get_historical_data
+        from forex_engine.scanner.mtf_scanner import _run_cascade
+        from forex_engine.forex_instruments import INSTRUMENTS as _FOREX_INSTRUMENTS
+
+        def _fetch(sym, tf, days):
+            return get_historical_data(fyers, sym, tf, days=days)
+
+        df_1h  = _fetch(symbol, '60', 5)
+        df_15m = _fetch(symbol, '15', 3)
+        df_5m  = _fetch(symbol, '5',  2)
+
+        # NSE symbols not in INSTRUMENTS — build a minimal cfg for index futures
+        # SL/FVG sizes are in index points (NIFTY ~50pt SL typical)
+        _nse_cfg_override = {
+            'min_sl_dist' : 10.0,
+            'min_fvg_size': 5.0,
+            'fvg_buf'     : 2.0,
+        }
+        # Temporarily inject so _run_cascade can read cfg
+        _FOREX_INSTRUMENTS['_NSE_TEMP_'] = _nse_cfg_override
+        result = _run_cascade(
+            '_NSE_TEMP_', df_1h, df_15m, df_5m,
+            h4_bias=h4_bias, min_rr=min_rr, source='MTF-NSE',
+        )
+        _FOREX_INSTRUMENTS.pop('_NSE_TEMP_', None)
+
+        if result:
+            result['symbol'] = symbol   # restore actual symbol
+        return result
+    except Exception as exc:
+        from utils.logger import logger
+        logger.debug(f"MTF-NSE {symbol}: cascade error — {exc}")
+        return None

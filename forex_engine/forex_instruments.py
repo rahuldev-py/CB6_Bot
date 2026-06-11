@@ -68,7 +68,7 @@ INSTRUMENTS = {
         'max_lot'      : 0.50,     # capped lower — oil volatility risk
         'lot_step'     : 0.01,
         'min_sl_dist'  : 0.50,
-        'min_fvg_size' : 0.25,     # $0.25 minimum FVG — 50% of min SL
+        'min_fvg_size' : 0.20,     # $0.20 minimum FVG — 40% of min SL (reduced from 0.25; 0.23pt FVGs consistently valid)
         'fvg_buf'      : 0.05,
         # FTMO: avg spread 80-100 pts = $0.08-0.10. Max $0.20 blocks news spikes.
         'max_spread'   : 0.20,

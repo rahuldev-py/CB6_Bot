@@ -100,7 +100,8 @@ from dashboard import start_dashboard, archive_trades
 
 
 
-fyers_instance = None
+fyers_instance   = None
+_options_manager = None   # NSE Index Options Manager (ATM 1-lot auto-execute)
 
 _EXECUTION_VALIDATION_CONFIG = {
 
@@ -880,6 +881,37 @@ def send_sell_alert(setup, timeframe):
 
 
 
+def _trigger_options_entry(setup: dict, fyers_symbol: str) -> None:
+    """
+    Select ATM option for the given setup and enter via OptionsOrderManager.
+    Called after every validated Silver Bullet signal.
+    """
+    global _options_manager, fyers_instance
+    if _options_manager is None or fyers_instance is None:
+        return
+    try:
+        from scanner.options_strike_selector import select_atm_option
+        direction = setup.get('direction', '')
+        if not direction:
+            return
+        # Extract clean index name from Fyers futures symbol
+        # e.g. NSE:NIFTY25JUN24FUT → NIFTY | NSE:BANKNIFTY... → BANKNIFTY
+        sym_upper = fyers_symbol.upper()
+        index = next(
+            (k for k in ('BANKNIFTY', 'MIDCPNIFTY', 'FINNIFTY', 'NIFTY')
+             if k in sym_upper),
+            None
+        )
+        if not index:
+            logger.warning(f"[OPTIONS] Cannot extract index from {fyers_symbol}")
+            return
+        option_info = select_atm_option(fyers_instance, index, direction)
+        if option_info:
+            _options_manager.enter(option_info, setup)
+    except Exception as e:
+        logger.error(f"[OPTIONS] _trigger_options_entry error: {e}")
+
+
 def run_scan():
 
     """Index-only mode: redirect /scan to Silver Bullet index futures scan."""
@@ -1008,17 +1040,25 @@ def _apply_live_entry(setup: dict, df, fyers=None, symbol: str = '') -> dict | N
 
     #  Â¢" âÂ Â¢" âÂ¬ Stale check with approach buffer  Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ¬
 
-    # Strict in-zone check; near-FVG approach entries are intentionally blocked.
+    # Validity check: LTP must be in the FVG zone OR within 1% approach buffer.
+    # Entry price stays at the scanner's structural FVG edge — we do NOT overwrite
+    # it with LTP. The Fyers LIMIT order in place_futures_trade fills at sig['entry'].
+    sig     = setup['entry_signal']
+    planned = sig['entry']   # FVG low+buf (BULLISH) or FVG high-buf (BEARISH) from scanner
 
-    in_fvg = fvg_low <= live_price <= fvg_high
+    fvg_size     = fvg_high - fvg_low
+    approach_buf = max(fvg_size * 1.0, planned * 0.01)
 
+    if direction == 'BULLISH':
+        valid = live_price <= fvg_high + approach_buf
+    else:
+        valid = live_price >= fvg_low - approach_buf
 
-
-    if not in_fvg:
+    if not valid:
 
         logger.info(
 
-            f"Stale signal {symbol}: LTP {live_price} outside FVG {fvg_low}-{fvg_high} -- skipping"
+            f"Stale signal {symbol}: LTP {live_price} too far from FVG {fvg_low}-{fvg_high} -- skipping"
 
         )
 
@@ -1028,53 +1068,22 @@ def _apply_live_entry(setup: dict, df, fyers=None, symbol: str = '') -> dict | N
 
     #  Â¢" âÂ Â¢" âÂ¬ Build trade plan from live entry  Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ Â¢" âÂ¬
 
-    sig  = setup['entry_signal']
-
-    sig['entry'] = live_price
-
-    risk = round(abs(live_price - sig['stop_loss']), 2)
+    # Keep the scanner's structural entry (FVG edge) — do not replace with LTP.
+    # SL/TP were already built from this entry in scanner; preserve them as-is.
+    risk = round(abs(planned - sig['stop_loss']), 2)
 
     if risk <= 0:
 
         return None
 
-    sig['risk'] = risk
+    sig['risk']     = risk
+    sig['live_ltp'] = live_price   # log LTP for reference without replacing entry
 
-
-
-    dol = sig.get('dol_level', None)
-
-    if direction == 'BULLISH':
-
-        t1     = round(live_price + risk * 2.0, 2)
-
-        t2     = round(live_price + risk * 3.0, 2)
-
-        t3_raw = dol if (dol and dol > t2) else live_price + risk * 4.0
-
-        t3     = round(max(t3_raw, t2), 2)
-
-    else:
-
-        t1     = round(live_price - risk * 2.0, 2)
-
-        t2     = round(live_price - risk * 3.0, 2)
-
-        t3_raw = dol if (dol and dol < t2) else live_price - risk * 4.0
-
-        t3     = round(min(t3_raw, t2), 2)
-
-
-
-    sig['target1']  = t1
-
-    sig['target2']  = t2
-
-    sig['target3']  = t3
-
-    sig['rr_ratio'] = round((t2 - live_price) / risk if direction == 'BULLISH'
-
-                            else (live_price - t2) / risk, 2)
+    logger.info(
+        f"Live entry {symbol}: structural entry={planned} LTP={live_price} "
+        f"SL={sig['stop_loss']} T2={sig.get('target2')} "
+        f"({'in FVG' if fvg_low <= live_price <= fvg_high else 'approaching FVG'})"
+    )
 
     return setup
 
@@ -1702,6 +1711,10 @@ def run_silver_bullet_scan():
             setup = scan_silver_bullet(df, symbol, tf='3', fyers=fyers_instance)
 
             if not setup:
+                from scanner.silver_bullet import scan_silver_bullet_mtf as _mtf
+                setup = _mtf(fyers_instance, symbol, min_rr=2.5)
+
+            if not setup:
 
                 skip_reasons.append(f"{name}: DOL/MSS/FVG chain incomplete")
 
@@ -1893,17 +1906,8 @@ def run_silver_bullet_scan():
 
                 # Ã¢"â¬Ã¢"â¬ Options trade (secondary - if strike available) Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬
 
-                if option_info:
-
-                    place_silver_bullet_trade(
-
-                        fyers_instance, setup, option_info, paper_mode=False
-
-                    )
-
-                else:
-
-                    logger.info(f"SB {name}: no option strike - futures trade only")
+                # Options trade — ATM 1-lot via OptionsOrderManager
+                _trigger_options_entry(setup, symbol)
 
             except Exception as oe:
 
@@ -2113,6 +2117,10 @@ def _nifty_live_scanner_inner():
                 setup = scan_silver_bullet(df, symbol, tf='3',
 
                                            fyers=fyers_instance, force=True)
+
+                if not setup:
+                    from scanner.silver_bullet import scan_silver_bullet_mtf as _mtf
+                    setup = _mtf(fyers_instance, symbol, min_rr=2.5)
 
                 if not setup:
 
@@ -2793,9 +2801,8 @@ def _nifty_live_scanner_inner():
 
                                        option=opt.get('symbol', '?'), mode=EXECUTION_MODE)
 
-                                place_silver_bullet_trade(fyers_instance, setup,
-
-                                                          opt, paper_mode=False)
+                                # Options trade — ATM 1-lot via OptionsOrderManager
+                                _trigger_options_entry(setup, symbol)
 
                             else:
 
@@ -3282,7 +3289,14 @@ def main():
 
     fyers_instance = initialize_fyers()
 
-
+    # Initialize NSE Index Options Manager
+    global _options_manager
+    try:
+        from utils.options_order_manager import OptionsOrderManager as _OOM
+        _options_manager = _OOM(lambda: fyers_instance)
+        logger.info("NSE Index Options Manager initialised (ATM 1-lot auto-execute)")
+    except Exception as _oom_e:
+        logger.warning(f"OptionsOrderManager init failed: {_oom_e}")
 
     # Share live fyers session with dashboard so backtest doesn't need a fresh token
 

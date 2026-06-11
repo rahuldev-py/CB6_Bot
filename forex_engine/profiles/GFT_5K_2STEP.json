@@ -70,7 +70,7 @@
 
   "daily_reset_utc_hour": 22,
 
-  "state_file": "data/gft_2step_state.json",
+  "state_file": "data/gft_5k/state.json",
   "heartbeat_file": "data/gft_2step_heartbeat.txt",
   "telegram_prefix": "[GFT-2STEP]",
   "magic_env_var": "GFT_2STEP_MAGIC",

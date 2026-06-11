@@ -33,13 +33,15 @@ from forex_engine.trade.sl_tp_manager import (
 )
 from forex_engine.trade.duplicate_guard import DuplicateGuard
 from forex_engine.scanner.signal_scanner import scan_setup, is_in_kill_zone, in_rollover_window
+from forex_engine.scanner.mtf_scanner import scan_mtf_cascade
 from forex_engine.scanner.liquidity_sweep import sweep_confirmed as _sweep_ok
 from forex_engine.scanner.structure_scanner import get_h1_bias, get_h4_bias
 from forex_engine.scanner.setup_scorer import score_aplus_similarity, lot_boost_factor
 from forex_engine.data.slippage_tracker import SlippageTracker
 from ml_engine.memory.gft_shadow_recommendation import recommend_shadow_for_candidate
 from ml_engine.memory.gft_soft_gate import evaluate_soft_gate_and_log
-from settings import CB6_GFT_HARD_ENFORCEMENT_ENABLED
+from settings import CB6_GFT_HARD_ENFORCEMENT_ENABLED, CB6_ADAPTIVE_TRADE_GATE_ENABLED as _ADAPTIVE_GATE_ENABLED
+from forex_engine.scanner.adaptive_gate import evaluate_adaptive_gate as _eval_ag, log_gate_decision as _log_ag
 
 _P           = GFT_2STEP_PROFILE
 _STATE_LOCK  = threading.Lock()
@@ -81,7 +83,8 @@ def _send(msg: str):
 def _format_entry_alert(setup: dict, lots: float, risk_usd: float,
                         ticket: int = 0, phase: str = 'phase_1',
                         risk_mode: str = 'normal',
-                        sim_ratio: float = 0.0, boost: float = 1.0) -> str:
+                        sim_ratio: float = 0.0, boost: float = 1.0,
+                        gate_label: str = '') -> str:
     sig   = setup['entry_signal']
     sym   = setup['symbol']
     label = INSTRUMENTS.get(sym, {}).get('label', sym)
@@ -108,6 +111,7 @@ def _format_entry_alert(setup: dict, lots: float, risk_usd: float,
               if _wc >= 5 else f"Wave Count : {_wc}\n")
     mode_l = f"Risk Mode  : {risk_mode.upper()}\n" if risk_mode != 'normal' else ""
     tk_l   = f"MT5 Ticket : #{ticket}\n" if ticket else ""
+    gate_l = f"Gate       : {gate_label}\n" if gate_label else ""
 
     return (
         f"<b>CB6 QUANTUM — GFT 2-STEP {label} [{setup['confluence']}/15]</b>\n"
@@ -133,6 +137,7 @@ def _format_entry_alert(setup: dict, lots: float, risk_usd: float,
         f"{wave_l}"
         f"{sim_l}"
         f"{mode_l}"
+        f"{gate_l}"
         f"{tk_l}"
     )
 
@@ -588,7 +593,9 @@ class GFT2StepWorker:
             return
         setup = scan_setup(df, symbol, min_rr=2.0, h4_bias=_h4_pre)
         if not setup:
-            return
+            setup = scan_mtf_cascade(self._connector, symbol, h4_bias=_h4_pre, min_rr=2.0)
+            if not setup:
+                return
         # Shadow recommendation — fires for ALL scanner-passing setups (before HTF/score rejections)
         # so that we log what the reco engine would say even on setups that later get filtered.
         try:
@@ -618,51 +625,83 @@ class GFT2StepWorker:
         h1_bias = get_h1_bias(self._connector, symbol)
         h4_bias = get_h4_bias(self._connector, symbol)
 
-        # H4 direction gate — XAUUSD only.
-        # The May 22 disaster was XAUUSD SELL against a bullish H4 — the hard gate was
-        # added to prevent that exact scenario. XAGUSD and USOIL have different H4
-        # dynamics and should not be blocked by a Gold-specific filter.
-        # For XAUUSD: hard gate with 3-wave reversal exception (base_formed required).
-        # For XAGUSD/USOIL: H4 is informational only — log but do not block.
-        if h4_bias not in ('RANGING', direction):
-            _xauusd_gate = 'XAUUSD' in symbol.upper()
-            if _xauusd_gate:
-                _wc_h4   = int(setup.get('wave_count', 0) or 0)
-                _sw_h4   = bool(setup.get('sweep_confirmed', False))
-                _base_h4 = bool(setup.get('base_formed', False))
-                if _wc_h4 >= 3 and _sw_h4 and _base_h4:
-                    logger.info(
-                        f"GFT 2-Step {symbol}: counter-H4 ALLOWED — 3-wave reversal + base "
-                        f"wave={_wc_h4} H4={h4_bias} HALF SIZE T1-only"
-                    )
-                    setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
-                    setup['t1_only']         = True
-                    setup['reversal_3wave']  = True
-                else:
-                    logger.info(
-                        f"GFT 2-Step {symbol}: counter-H4 SKIP — 3-wave gate not met "
-                        f"wave={_wc_h4} sweep={_sw_h4} base={_base_h4} H4={h4_bias} "
-                        f"(need wave≥3 + sweep + base)"
-                    )
-                    return
-            else:
+        # HTF gate — adaptive or legacy path.
+        # LEGACY (default): XAUUSD H4 hard gate + H1 3-wave gate, cascade bypasses both.
+        # ADAPTIVE: unified soft-gate decision for all paths (no bypass for cascade).
+        _adaptive_size_mult = float(setup.get('size_multiplier', 1.0) or 1.0)
+        if _ADAPTIVE_GATE_ENABLED:
+            _adg = _eval_ag(setup, h4_bias, h1_bias, utc_hour)
+            _log_ag(symbol, _adg)
+            if not _adg.trade_allowed:
                 logger.info(
-                    f"GFT 2-Step {symbol}: H4={h4_bias} vs {direction} "
-                    f"(informational — H4 gate is XAUUSD-only, {symbol} proceeds)"
+                    f"GFT 2-Step {symbol}: adaptive gate {_adg.decision} — "
+                    f"{_adg.soft_gate_reasons or _adg.hard_block_reasons}"
                 )
-
-        # H1 — 3-wave exception: counter-H1 allowed when wave≥3 + sweep confirmed
-        _wc = int(setup.get('wave_count', 0) or 0)
-        _sw = bool(setup.get('sweep_confirmed', False))
-        if h1_bias not in ('RANGING', direction):
-            if _wc >= 3 and _sw:
-                logger.info(f"GFT 2-Step {symbol}: 3-WAVE counter-H1 allowed wave={_wc} H1={h1_bias} HALF SIZE T1-only")
-                setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
-                setup['t1_only']         = True
-                setup['reversal_3wave']  = True
-            else:
-                logger.info(f"GFT 2-Step {symbol}: H1 block — H1={h1_bias} wave={_wc} (need ≥3 + sweep)")
                 return
+            _adaptive_size_mult = _adg.size_multiplier
+            if _adg.t1_only:
+                setup['t1_only'] = True
+            if _adg.decision != 'FULL_SIZE':
+                _send(
+                    f"⚠️ <b>GFT 2-STEP {symbol} — {_adg.decision}</b>\n"
+                    f"{_adg.telegram_card}"
+                )
+        else:
+            # LEGACY: cascade path uses its own baked-in size/t1_only; non-cascade goes through
+            # the original H4 XAUUSD hard gate + H1 3-wave gate.
+            if setup.get('mtf_cascade'):
+                logger.info(
+                    f"GFT 2-Step {symbol}: MTF cascade path — "
+                    f"HTF gates bypassed (size={setup.get('size_multiplier',1.0):.1f}x "
+                    f"t1_only={setup.get('t1_only',False)} tfs={setup.get('cascade_tfs',[])})"
+                )
+            else:
+                if h4_bias not in ('RANGING', direction):
+                    _xauusd_gate = 'XAUUSD' in symbol.upper()
+                    if _xauusd_gate:
+                        _wc_h4   = int(setup.get('wave_count', 0) or 0)
+                        _sw_h4   = bool(setup.get('sweep_confirmed', False))
+                        _base_h4 = bool(setup.get('base_formed', False))
+                        if _wc_h4 >= 3 and _sw_h4 and _base_h4:
+                            logger.info(
+                                f"GFT 2-Step {symbol}: counter-H4 ALLOWED — 3-wave reversal + base "
+                                f"wave={_wc_h4} H4={h4_bias} HALF SIZE T1-only"
+                            )
+                            setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                            setup['t1_only']         = True
+                            setup['reversal_3wave']  = True
+                        else:
+                            logger.info(
+                                f"GFT 2-Step {symbol}: counter-H4 SKIP — 3-wave gate not met "
+                                f"wave={_wc_h4} sweep={_sw_h4} base={_base_h4} H4={h4_bias}"
+                            )
+                            return
+                    else:
+                        logger.info(
+                            f"GFT 2-Step {symbol}: H4={h4_bias} vs {direction} "
+                            f"(informational — H4 gate is XAUUSD-only, {symbol} proceeds)"
+                        )
+
+                # H1 — 3-wave exception
+                _wc = int(setup.get('wave_count', 0) or 0)
+                _sw = bool(setup.get('sweep_confirmed', False))
+                if h1_bias not in ('RANGING', direction):
+                    if _wc >= 3 and _sw:
+                        logger.info(
+                            f"GFT 2-Step {symbol}: 3-WAVE counter-H1 allowed "
+                            f"wave={_wc} H1={h1_bias} HALF SIZE T1-only"
+                        )
+                        setup['size_multiplier'] = setup.get('size_multiplier', 1.0) * 0.5
+                        setup['t1_only']         = True
+                        setup['reversal_3wave']  = True
+                    else:
+                        logger.info(
+                            f"GFT 2-Step {symbol}: H1 block — H1={h1_bias} "
+                            f"wave={_wc} (need ≥3 + sweep)"
+                        )
+                        return
+            # Sync _adaptive_size_mult with what the legacy path put in setup
+            _adaptive_size_mult = float(setup.get('size_multiplier', 1.0) or 1.0)
 
         # ── Wave exhaustion tag (5-6 waves = deep exhaustion, high-priority for analysis)
         _wave_count_now = int(setup.get('wave_count', 0) or 0)
@@ -714,10 +753,6 @@ class GFT2StepWorker:
                 f"GFT 2-Step {symbol}: NO CONFIRMED SWEEP — score gate raised +2. "
                 f"score={score}/18 (CHoCH+FVG must compensate)"
             )
-
-        if not setup.get('in_fvg'):
-            logger.info(f"GFT 2-Step {symbol}: NOT IN FVG")
-            return
 
         # Score gate
         sym_min  = SYMBOL_MIN_SCORE.get(symbol, 11)
@@ -858,6 +893,10 @@ class GFT2StepWorker:
         lots    = cap_lots_for_account(symbol, lots, GFT_2STEP_PROFILE)
         lots    = gft_lot_modifier(lots)
         min_lot = INSTRUMENTS.get(symbol, {}).get('min_lot', 0.01)
+        # Apply size multiplier (adaptive gate or legacy 3-wave/cascade half-size).
+        # This fixes the silent bug where size_multiplier was set in setup but never applied to lots.
+        if _adaptive_size_mult < 1.0:
+            lots = max(min_lot, round(lots * _adaptive_size_mult, 2))
         if CB6_GFT_HARD_ENFORCEMENT_ENABLED and _gate_decision in ('BLOCK', 'CAUTION'):
             if _gate_decision == 'BLOCK':
                 lots = min_lot
@@ -891,6 +930,23 @@ class GFT2StepWorker:
                                 + (" ⭐EXHAUSTION" if _wave_exhaustion else "")),
             'spread_at_entry': self._connector.get_spread(symbol) or 0.0,
         })
+
+        # Price proximity check — only enter when LTP is at/near the structural FVG entry.
+        # If price has drifted into the middle of the FVG (>25% of SL distance from entry),
+        # skip this cycle without opening state or marking dedup so the next 15s poll retries.
+        if not self._paper:
+            _cur_px = self._connector.get_price(symbol)
+            if _cur_px:
+                _max_drift = abs(sig['entry'] - sig['stop_loss']) * 0.25
+                _drift     = abs(_cur_px - sig['entry'])
+                if _drift > _max_drift:
+                    logger.info(
+                        f"GFT 2-Step {symbol}: PRICE DRIFTED — "
+                        f"entry={sig['entry']:.5f} LTP={_cur_px:.5f} "
+                        f"drift={_drift:.5f} > max={_max_drift:.5f}. "
+                        f"Waiting for retrace to FVG entry level."
+                    )
+                    return
 
         # Open state record
         trade = _open_trade_state(setup, lots)
@@ -946,9 +1002,17 @@ class GFT2StepWorker:
             f"GFT 2-Step {symbol}: TRADE OPENED {direction} {lots}L "
             f"@ {sig['entry']:.5f} phase={phase}"
         )
+        _sm = float(setup.get('size_multiplier', 1.0) or 1.0)
+        if _ADAPTIVE_GATE_ENABLED and _adaptive_size_mult < 1.0:
+            _gate_label = f"{_adg.decision} {_adaptive_size_mult:.2f}x"
+        elif not _ADAPTIVE_GATE_ENABLED and _sm < 1.0:
+            _gate_label = f"LEGACY {_sm:.2f}x"
+        else:
+            _gate_label = ""
         _send(_format_entry_alert(
             setup, lots, risk_usd, ticket=ticket, phase=phase,
-            risk_mode=risk_mode, sim_ratio=sim_ratio, boost=boost
+            risk_mode=risk_mode, sim_ratio=sim_ratio, boost=boost,
+            gate_label=_gate_label,
         ))
 
         # ── ML price series (CNN/RNN) ────────────────────────────────────────────
