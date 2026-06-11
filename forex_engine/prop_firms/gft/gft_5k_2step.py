@@ -618,7 +618,8 @@ class GFT2StepWorker:
 
         sig       = setup['entry_signal']
         direction = setup['direction']
-        score     = setup['confluence']
+        _conf     = setup['confluence']
+        score     = _conf.get('score', 0) if isinstance(_conf, dict) else int(_conf or 0)
         mss_type  = setup.get('mss_type', 'BOS')
 
         # HTF bias checks
