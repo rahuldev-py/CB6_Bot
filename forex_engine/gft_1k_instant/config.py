@@ -37,13 +37,14 @@ GFT_1K_INSTANT_PROFILE = {
     "max_lot": _float_env("CB6_GFT_1K_INSTANT_MAX_LOT", "0.01"),
     "magic": _int_env("CB6_GFT_1K_INSTANT_MAGIC", "100061"),
     "state_dir": os.getenv("CB6_GFT_1K_INSTANT_STATE_DIR", "data/gft_1k_instant"),
-    "enabled_symbols": ["XAUUSD", "XAGUSD", "USOIL"],
-    "disabled_symbols": [],
+    "enabled_symbols": ["XAUUSD", "XAGUSD"],
+    "disabled_symbols": ["USOIL"],
     # XAUUSD lot sizing: risk$2.50 / (100oz × SL_distance)
     # SL $2.50 → 0.01 lots (minimum — only viable with very tight SL)
     # SL > $2.50 → lots < 0.01 → engine auto-skips (below min_lot)
     # Effectively: $1K only trades Gold when setup has ≤$2.50 SL distance
-    "max_lot_per_symbol": {"XAUUSD": 0.01, "XAGUSD": 0.01, "USOIL": 0.01},
+    # USOIL disabled: GFT min lot is 0.10 → risk=$5.50 > $2.50 max → can never trade
+    "max_lot_per_symbol": {"XAUUSD": 0.01, "XAGUSD": 0.01},
     "min_rr": 1.5,
     "max_open_positions": 1,
     "alert_prefix": "[GFT-1K-INSTANT]",

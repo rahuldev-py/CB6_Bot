@@ -62,7 +62,7 @@ GFT_2STEP_PROFILE = {
     # XAUUSD lot sizing: risk$25 / (100oz × SL_distance)
     # SL $5  → 0.05 lots | SL $10 → 0.02 lots | SL $15 → 0.01 lots
     # A+ mode (0.75%=$37.50): SL $5 → 0.075 lots (capped to 0.05)
-    'max_lot_per_symbol': {'XAUUSD': 0.05, 'XAGUSD': 0.20, 'USOIL': 0.50},
+    'max_lot_per_symbol': {'XAUUSD': 0.05, 'XAGUSD': 0.05, 'USOIL': 0.05},
 
     # ── GFT kill zone windows (UTC) ────────────────────────────────────────────
     # Aligned to MT5 FTMO 15m backtest windows (2yr validated: XAGUSD 53% WR, USOIL 69% WR)
