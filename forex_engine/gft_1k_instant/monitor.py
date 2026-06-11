@@ -231,7 +231,7 @@ class GFT1KInstantWorker:
                     'ts': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     'symbol': symbol, 'direction': direction,
                     'wave_count': _wc_now, 'h4_bias': h4_bias,
-                    'score': setup.get('confluence', 0),
+                    'score': (lambda _c: _c.get('score', 0) if isinstance(_c, dict) else int(_c or 0))(setup.get('confluence', 0)),
                     'account': 'GFT_1K_INSTANT',
                 }
                 with open(_wex_path, 'a', encoding='utf-8') as _wf:
