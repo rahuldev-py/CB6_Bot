@@ -33,7 +33,7 @@ from forex_engine.trade.sl_tp_manager import (
 )
 from forex_engine.trade.duplicate_guard import DuplicateGuard
 from forex_engine.scanner.signal_scanner import scan_setup, is_in_kill_zone, in_rollover_window
-from forex_engine.scanner.mtf_scanner import scan_mtf_cascade
+from forex_engine.scanner.mtf_scanner import scan_mtf_cascade, granular_mtf_confirm
 from forex_engine.scanner.liquidity_sweep import sweep_confirmed as _sweep_ok
 from forex_engine.scanner.structure_scanner import get_h1_bias, get_h4_bias
 from forex_engine.scanner.setup_scorer import score_aplus_similarity, lot_boost_factor
@@ -42,6 +42,8 @@ from ml_engine.memory.gft_shadow_recommendation import recommend_shadow_for_cand
 from ml_engine.memory.gft_soft_gate import evaluate_soft_gate_and_log
 from settings import CB6_GFT_HARD_ENFORCEMENT_ENABLED, CB6_ADAPTIVE_TRADE_GATE_ENABLED as _ADAPTIVE_GATE_ENABLED
 from forex_engine.scanner.adaptive_gate import evaluate_adaptive_gate as _eval_ag, log_gate_decision as _log_ag
+from utils.audit_log import append as _audit
+from utils.latency_monitor import LatencyMonitor as _LatencyMonitor
 
 _P           = GFT_2STEP_PROFILE
 _STATE_LOCK  = threading.Lock()
@@ -142,7 +144,8 @@ def _format_entry_alert(setup: dict, lots: float, risk_usd: float,
     )
 
 
-def _format_exit_alert(event: dict, phase: str = 'phase_1') -> str:
+def _format_exit_alert(event: dict, phase: str = 'phase_1',
+                        daily_pnl: float = 0.0) -> str:
     t     = event['trade']
     sym   = t.get('symbol', 'XAGUSD')
     label = INSTRUMENTS.get(sym, {}).get('label', sym)
@@ -161,9 +164,6 @@ def _format_exit_alert(event: dict, phase: str = 'phase_1') -> str:
         'TIME_EXIT': '⏱️ TIME EXIT — no progress',
     }
     result = result_map.get(etype, f'{etype} HIT')
-
-    state    = load_state()
-    daily_pnl = state.get('daily_pnl', 0.0)
 
     return (
         f"<b>CB6 QUANTUM — GFT 2-STEP {label}</b>\n"
@@ -225,6 +225,8 @@ def _open_trade_state(setup: dict, lots: float, ticket: int = 0) -> Optional[dic
             'actual_rrr'     : 0.0,
             'confluence'     : setup['confluence'],
             'mss_type'       : setup.get('mss_type', 'BOS'),
+            'h4_bias'        : setup.get('h4_bias', ''),
+            'session'        : setup.get('session', ''),
             'entry_time'     : datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'entry_reason'   : setup.get('entry_reason', ''),
             'spread_at_entry': setup.get('spread_at_entry', 0.0),
@@ -525,6 +527,7 @@ class GFT2StepWorker:
         self._locks     = {s: threading.Lock() for s in _P['enabled_symbols']}
         self._running   = False
         self._ema_alerted: dict = {s: set() for s in _P['enabled_symbols']}
+        self._latency    = _LatencyMonitor(account='gft_5k', market='forex')
 
         logger.info(
             f"GFT 2-Step worker initialized — "
@@ -596,6 +599,26 @@ class GFT2StepWorker:
             setup = scan_mtf_cascade(self._connector, symbol, h4_bias=_h4_pre, min_rr=2.0)
             if not setup:
                 return
+
+        # Granular 6-TF entry confirmation: 45m→30m→15m→5m→2m→1m
+        # H4 counter-trend XAUUSD = BLOCKED here; <3/6 TFs aligned = BLOCKED.
+        _gran = granular_mtf_confirm(
+            self._connector, symbol, setup['direction'], _h4_pre
+        )
+        if not _gran['confirmed']:
+            logger.info(
+                f"GFT 2-Step {symbol}: granular MTF BLOCKED — "
+                f"{_gran['blocking_reason']} (score={_gran['score']}/6)"
+            )
+            return
+        # Merge granular size/t1 constraints into setup (take the more restrictive)
+        if _gran['size_multiplier'] < float(setup.get('size_multiplier', 1.0) or 1.0):
+            setup['size_multiplier'] = _gran['size_multiplier']
+        if _gran['t1_only']:
+            setup['t1_only'] = True
+        setup['granular_mtf_score'] = _gran['score']
+        setup['granular_mtf_action'] = _gran['action']
+
         # Shadow recommendation — fires for ALL scanner-passing setups (before HTF/score rejections)
         # so that we log what the reco engine would say even on setups that later get filtered.
         try:
@@ -825,6 +848,15 @@ class GFT2StepWorker:
         sim_ratio, _ = score_aplus_similarity(setup, df15, h4_bias, h1_bias, utc_hour)
         boost     = lot_boost_factor(sim_ratio)
 
+        # Minimum sim gate — 55% matches A+ entry threshold from CLAUDE.md spec.
+        # 60% was blocking valid A+ setups (55-59%) that backtests included.
+        _MIN_SIM = 0.55
+        if sim_ratio < _MIN_SIM:
+            logger.info(
+                f"GFT 2-Step {symbol}: SIM GATE — {sim_ratio:.0%} < {_MIN_SIM:.0%} min — skip"
+            )
+            return
+
         # ── Conviction evaluation (Phase 7) ──────────────────────────────────
         _gft_session = (
             "london"   if 7  <= utc_hour < 12 else
@@ -926,6 +958,8 @@ class GFT2StepWorker:
             'sim_ratio'      : sim_ratio,
             'lot_boost'      : boost,
             'risk_mode'      : risk_mode,
+            'h4_bias'        : h4_bias,
+            'session'        : _gft_session,
             'entry_reason'   : (f"{mss_type} score={score}/15 H4={h4_bias} "
                                 f"sim={sim_ratio:.0%} boost={boost}× "
                                 f"wave={_wave_count_now}"
@@ -933,22 +967,32 @@ class GFT2StepWorker:
             'spread_at_entry': self._connector.get_spread(symbol) or 0.0,
         })
 
-        # Price proximity check — only enter when LTP is at/near the structural FVG entry.
-        # If price has drifted into the middle of the FVG (>25% of SL distance from entry),
-        # skip this cycle without opening state or marking dedup so the next 15s poll retries.
+        # Determine order type: LIMIT when LTP drifted >25% of SL distance from FVG entry,
+        # MARKET when close enough for a clean fill.
+        # BUY LIMIT valid only when entry < LTP; SELL LIMIT valid only when entry > LTP.
+        _use_limit = False
+        _cur_px    = None
         if not self._paper:
             _cur_px = self._connector.get_price(symbol)
             if _cur_px:
-                _max_drift = abs(sig['entry'] - sig['stop_loss']) * 0.25
-                _drift     = abs(_cur_px - sig['entry'])
-                if _drift > _max_drift:
+                _sl_dist = abs(sig['entry'] - sig['stop_loss'])
+                _drift   = abs(_cur_px - sig['entry'])
+                if _drift > _sl_dist * 0.25:
+                    _is_long = direction == 'BULLISH'
+                    _lmt_ok  = (_is_long and sig['entry'] < _cur_px) or \
+                               (not _is_long and sig['entry'] > _cur_px)
+                    if not _lmt_ok:
+                        logger.info(
+                            f"GFT 2-Step {symbol}: PRICE DRIFTED past entry — "
+                            f"entry={sig['entry']:.5f} LTP={_cur_px:.5f} — skip"
+                        )
+                        return
+                    _use_limit = True
                     logger.info(
                         f"GFT 2-Step {symbol}: PRICE DRIFTED — "
                         f"entry={sig['entry']:.5f} LTP={_cur_px:.5f} "
-                        f"drift={_drift:.5f} > max={_max_drift:.5f}. "
-                        f"Waiting for retrace to FVG entry level."
+                        f"drift={_drift:.5f} — using LIMIT order"
                     )
-                    return
 
         # Open state record
         trade = _open_trade_state(setup, lots)
@@ -959,51 +1003,102 @@ class GFT2StepWorker:
         self._hft_guard.record_entry()
         ticket = 0
 
-        # MT5 order
+        # MT5 order — limit when price drifted, market when at/near entry
         if not self._paper:
+            _lat_token = self._latency.start(trade['id'])
             time.sleep(random.uniform(0.05, 0.25))   # GFT fingerprint randomization
-            result = self._connector.place_market_order(
-                symbol    = symbol,
-                direction = 'BUY' if direction == 'BULLISH' else 'SELL',
-                lots      = lots,
-                sl        = sig['stop_loss'],
-                tp        = sig['target2'],
-                magic     = _GFT_MAGIC,
-            )
-            if not result:
-                logger.error(f"GFT 2-Step {symbol}: MT5 FAILED — rolling back")
-                _rollback_trade(trade['id'], risk_usd)
-                _send(f"⚠️ GFT 2-Step MT5 order FAILED for {symbol}. Check AutoTrading.")
-                return
-
-            ticket = result.get('ticket', 0)
-            fill   = result.get('price', 0.0)
-            if ticket:
-                _update_ticket(trade['id'], ticket)
-            if fill:
-                adj = adjust_for_fill(symbol, direction, fill, sig['entry'],
-                                      sig['stop_loss'], lots)
-                _update_fill(trade['id'], fill, adj['stop_loss'], adj['target1'],
-                             adj['target2'], adj['target3'], adj['risk_usd'])
-                self._slip.check(symbol, sig['entry'], fill)
-                sig.update(adj)
-                risk_usd = adj['risk_usd']
+            if _use_limit:
+                from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+                _now_utc = _dt.now(_tz.utc)
+                _h = _now_utc.hour
+                if 7 <= _h < 12:
+                    _kz_end = _now_utc.replace(hour=12, minute=0, second=0, microsecond=0)
+                elif 16 <= _h < 20:
+                    _kz_end = _now_utc.replace(hour=20, minute=0, second=0, microsecond=0)
+                else:
+                    _kz_end = _now_utc + _td(hours=1)
+                _expiry = min(_kz_end, _now_utc + _td(hours=2))
+                result = self._connector.place_limit_order(
+                    symbol    = symbol,
+                    direction = 'BUY' if direction == 'BULLISH' else 'SELL',
+                    lots      = lots,
+                    entry     = sig['entry'],
+                    sl        = sig['stop_loss'],
+                    tp        = sig['target2'],
+                    magic     = _GFT_MAGIC,
+                    expiry    = _expiry,
+                )
+                if not result:
+                    logger.error(f"GFT 2-Step {symbol}: MT5 LIMIT FAILED — rolling back")
+                    _rollback_trade(trade['id'], risk_usd)
+                    self._latency.cancel(trade['id'])
+                    _send(f"⚠️ GFT 2-Step LIMIT order FAILED for {symbol}.")
+                    return
+                ticket = result.get('ticket', 0)
+                self._latency.finish(trade['id'], ticket=ticket, symbol=symbol)
                 if ticket:
-                    try:
-                        self._connector.modify_sl(symbol, ticket, adj['stop_loss'])
-                    except Exception:
-                        # REQ-5: Best-effort SL adjust — log but don't block entry
-                        logger.warning(
-                            f"GFT 2-Step {symbol}: post-fill modify_sl failed "
-                            f"(ticket={ticket}, sl={adj['stop_loss']:.5f})",
-                            exc_info=True
-                        )
+                    _update_ticket(trade['id'], ticket)
+                logger.info(
+                    f"GFT 2-Step {symbol}: LIMIT PLACED {direction} {lots}L "
+                    f"@ {sig['entry']:.5f} ticket={ticket} expires {_expiry.strftime('%H:%M')} UTC"
+                )
+                _send(
+                    f"📋 GFT $5K LIMIT {direction} {symbol} {lots}L "
+                    f"@ {sig['entry']:.5f} SL={sig['stop_loss']:.5f} "
+                    f"ticket={ticket} | expires {_expiry.strftime('%H:%M')} UTC"
+                )
+                return
+            else:
+                result = self._connector.place_market_order(
+                    symbol    = symbol,
+                    direction = 'BUY' if direction == 'BULLISH' else 'SELL',
+                    lots      = lots,
+                    sl        = sig['stop_loss'],
+                    tp        = sig['target2'],
+                    magic     = _GFT_MAGIC,
+                )
+                if not result:
+                    logger.error(f"GFT 2-Step {symbol}: MT5 FAILED — rolling back")
+                    _rollback_trade(trade['id'], risk_usd)
+                    self._latency.cancel(trade['id'])
+                    _send(f"⚠️ GFT 2-Step MT5 order FAILED for {symbol}. Check AutoTrading.")
+                    return
+
+                ticket = result.get('ticket', 0)
+                self._latency.finish(trade['id'], ticket=ticket, symbol=symbol)
+                fill   = result.get('price', 0.0)
+                if ticket:
+                    _update_ticket(trade['id'], ticket)
+                if fill:
+                    adj = adjust_for_fill(symbol, direction, fill, sig['entry'],
+                                          sig['stop_loss'], lots)
+                    _update_fill(trade['id'], fill, adj['stop_loss'], adj['target1'],
+                                 adj['target2'], adj['target3'], adj['risk_usd'])
+                    self._slip.check(symbol, sig['entry'], fill)
+                    sig.update(adj)
+                    risk_usd = adj['risk_usd']
+                    if ticket:
+                        try:
+                            self._connector.modify_sl(symbol, ticket, adj['stop_loss'])
+                        except Exception:
+                            # REQ-5: Best-effort SL adjust — log but don't block entry
+                            logger.warning(
+                                f"GFT 2-Step {symbol}: post-fill modify_sl failed "
+                                f"(ticket={ticket}, sl={adj['stop_loss']:.5f})",
+                                exc_info=True
+                            )
 
         phase = state.get('current_phase', 'phase_1')
         logger.info(
             f"GFT 2-Step {symbol}: TRADE OPENED {direction} {lots}L "
             f"@ {sig['entry']:.5f} phase={phase}"
         )
+        _audit('ORDER_PLACED', 'gft_5k', 'forex',
+               symbol=symbol, direction=direction, lots=lots,
+               entry=sig['entry'], sl=sig['stop_loss'],
+               t1=sig['target1'], t2=sig['target2'], t3=sig['target3'],
+               risk_usd=risk_usd, ticket=ticket, phase=phase,
+               score=score, sim_ratio=round(sim_ratio, 3))
         _sm = float(setup.get('size_multiplier', 1.0) or 1.0)
         if _ADAPTIVE_GATE_ENABLED and _adaptive_size_mult < 1.0:
             _gate_label = f"{_adg.decision} {_adaptive_size_mult:.2f}x"
@@ -1097,7 +1192,108 @@ class GFT2StepWorker:
         except Exception as _rep_e:
             logger.debug(f"GFT trade replay capture skipped: {_rep_e}")
 
+    # ── Startup broker reconciliation ────────────────────────────────────────
+
+    def _reconcile_on_startup(self):
+        """
+        Diff state['open_trades'] against live MT5 positions before the monitor
+        loop starts. Any state trade whose ticket is absent from the broker means
+        the position was closed while the bot was offline (SL hit, manual close,
+        broker auto-square). We fetch deal history for the actual close price and
+        book it properly rather than leaving the ghost in open_trades.
+        """
+        if self._paper:
+            return
+        try:
+            live_positions = self._connector.get_live_positions(_GFT_MAGIC)
+        except Exception as _e:
+            logger.error(f"GFT reconcile: failed to fetch live positions — {_e}")
+            return
+
+        live_tickets = {p['ticket'] for p in live_positions} if live_positions else set()
+
+        with _STATE_LOCK:
+            state = load_state()
+            ghosts = [t for t in state.get('open_trades', []) if t.get('ticket', 0) not in live_tickets and t.get('ticket', 0) != 0]
+            if not ghosts:
+                logger.info(
+                    f"GFT reconcile: OK — {len(state.get('open_trades', []))} open trade(s) "
+                    f"match broker ({len(live_tickets)} live position(s))"
+                )
+                return
+
+            logger.warning(
+                f"GFT reconcile: {len(ghosts)} ghost trade(s) found "
+                f"(state open but not in broker). Closing offline."
+            )
+            for ghost in ghosts:
+                ticket  = ghost.get('ticket', 0)
+                symbol  = ghost['symbol']
+                entry   = ghost['entry_price']
+                lots    = ghost['lots']
+                direction = ghost['direction']
+                # Attempt to retrieve actual close price from MT5 deal history
+                close_px = None
+                close_pnl = None
+                try:
+                    close_px, close_pnl = self._connector.get_last_deal_for_ticket(ticket)
+                except Exception:
+                    pass
+                if close_px is None:
+                    # Fallback: use current price as approximation
+                    close_px = self._connector.get_price(symbol) or entry
+                    cfg = INSTRUMENTS.get(symbol, {})
+                    cs  = cfg.get('contract_size', 100000)
+                    dist = (close_px - entry) if direction == 'BULLISH' else (entry - close_px)
+                    close_pnl = round(lots * cs * dist, 2)
+
+                ghost['status']      = 'CLOSED'
+                ghost['exit_time']   = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                ghost['exit_price']  = close_px
+                ghost['pnl_usd']     = round(ghost.get('pnl_usd', 0) + (close_pnl or 0), 2)
+                ghost['exit_reason'] = 'OFFLINE_CLOSE'
+                state['open_trades']  = [t for t in state['open_trades'] if t['id'] != ghost['id']]
+                state['closed_trades'].append(ghost)
+                _apply_pnl(state, close_pnl or 0, ghost.get('risk_usd', 0))
+                logger.warning(
+                    f"GFT reconcile: ghost closed — {symbol} ticket={ticket} "
+                    f"exit={close_px:.5f} pnl=${close_pnl:.2f}"
+                )
+                _send(
+                    f"⚠️ <b>GFT RECONCILE — OFFLINE CLOSE</b>\n"
+                    f"Symbol : {symbol}\n"
+                    f"Ticket : #{ticket}\n"
+                    f"Exit   : {close_px:.5f} (broker-confirmed or LTP approx)\n"
+                    f"PnL    : ${close_pnl:.2f}\n"
+                    f"Reason : Position closed while bot was offline"
+                )
+            _save(state)
+
     # ── Monitor loop ─────────────────────────────────────────────────────────
+
+    def _update_floating_pnl(self):
+        """
+        Fetch live MT5 equity every monitor cycle and store floating_pnl in state.
+        floating_pnl = equity - balance = unrealized P&L on open positions.
+        This feeds into daily_loss_from_snapshot so the guard fires BEFORE SL hits.
+        """
+        if self._paper:
+            return
+        try:
+            equity  = self._connector.get_equity()
+            balance = self._connector.get_balance()
+            if equity and balance:
+                floating = round(equity - balance, 2)
+                with _STATE_LOCK:
+                    state = load_state()
+                    state['floating_pnl']    = floating
+                    state['live_equity']     = equity
+                    state['live_balance']    = balance
+                    _save(state)
+                if abs(floating) > 50:
+                    logger.debug(f"GFT floating P&L: ${floating:+.2f} (equity=${equity:.2f})")
+        except Exception as _e:
+            logger.debug(f"GFT floating P&L update skipped: {_e}")
 
     def _monitor_loop(self):
         while self._running:
@@ -1108,6 +1304,8 @@ class GFT2StepWorker:
                 )
                 time.sleep(15)
                 continue
+            # Update floating P&L first so daily guard has current open-position exposure
+            self._update_floating_pnl()
             for sym in _P['enabled_symbols']:
                 try:
                     events = _check_exits(self._connector, sym)
@@ -1124,26 +1322,33 @@ class GFT2StepWorker:
         etype  = ev['type']
         phase  = t.get('phase', 'phase_1')
 
-        # Min hold time check before any close
-        if etype in ('T1', 'T1_BE', 'T2', 'T3') and t.get('entry_time'):
+        # Min hold time check before any close (120s — GFT HFT flag prevention)
+        if etype in ('T1', 'T1_BE', 'T2', 'T3', 'MAE_EXIT', 'SL') and t.get('entry_time'):
             ok, remaining = self._hft_guard.check_min_hold(t['entry_time'])
             if not ok:
-                logger.info(f"GFT 2-Step {symbol}: min hold — waiting {remaining}s")
+                logger.info(f"GFT 2-Step {symbol}: min hold — waiting {remaining}s before {etype}")
                 time.sleep(remaining + 1)
 
-        if not self._paper and ticket and cl > 0:
-            if etype == 'T1_BE':
+        if not self._paper and ticket:
+            # BE events carry close_lots=0 — they must NOT be gated by cl > 0.
+            # Splitting into two branches prevents the silent no-op that left the
+            # original SL on the broker while internal state said "risk eliminated".
+            if etype in ('T1_BE', 'BE_TRIGGER'):
                 self._connector.modify_sl(symbol, ticket, t['entry_price'])
-            elif etype == 'BE_TRIGGER':
-                self._connector.modify_sl(symbol, ticket, t['entry_price'])
-            elif etype in ('SL', 'T3', 'T2', 'MAE_EXIT', 'TIME_EXIT'):
-                self._connector.close_position(symbol, ticket, cl, t['direction'])
-            elif etype == 'T1':
-                self._connector.close_position(symbol, ticket, cl, t['direction'])
-                self._connector.modify_sl(symbol, ticket, t['entry_price'])
+            elif cl > 0:
+                if etype in ('SL', 'T3', 'T2', 'MAE_EXIT', 'TIME_EXIT'):
+                    self._connector.close_position(symbol, ticket, cl, t['direction'], magic=_GFT_MAGIC)
+                elif etype == 'T1':
+                    self._connector.close_position(symbol, ticket, cl, t['direction'], magic=_GFT_MAGIC)
+                    self._connector.modify_sl(symbol, ticket, t['entry_price'])
 
         if etype not in ('BE_TRIGGER',):
-            _send(_format_exit_alert(ev, phase=phase))
+            _daily_pnl = load_state().get('daily_pnl', 0.0)
+            _send(_format_exit_alert(ev, phase=phase, daily_pnl=_daily_pnl))
+        _audit('POSITION_CLOSED', 'gft_5k', 'forex',
+               symbol=symbol, event=etype, ticket=ticket,
+               close_lots=cl, exit_price=ev.get('price'),
+               pnl=ev.get('pnl', 0), trade_id=t.get('id'))
 
         # ── ML outcome capture ────────────────────────────────────────────────
         if etype in ('SL', 'T1', 'T2', 'T3', 'MAE_EXIT', 'TIME_EXIT'):
@@ -1204,6 +1409,14 @@ class GFT2StepWorker:
         except Exception:
             pass
 
+        # REST control plane — emergency stop + status without Telegram dependency
+        try:
+            from utils.control_server import start as _cs_start, set_state_loader as _cs_loader
+            _cs_loader(load_state)
+            _cs_start(port=7373)
+        except Exception as _cs_e:
+            logger.warning(f"GFT control server not started: {_cs_e}")
+
         # Start GFT Telegram bot listener (isolated from FTMO bot)
         try:
             from communications.gft_bot import start_listening as _gft_listen
@@ -1236,6 +1449,10 @@ class GFT2StepWorker:
             f"KZ      : {_P['kill_zone_windows_utc']} UTC\n"
             f"Risk    : {_P['risk_normal_pct']}% / {_P['risk_reduced_pct']}% reduced"
         )
+
+        # Reconcile state vs broker BEFORE monitor loop starts.
+        # Catches any positions closed while the bot was offline (SL hit, manual close).
+        self._reconcile_on_startup()
 
         threading.Thread(target=self._monitor_loop, daemon=True,
                          name="GFT2Monitor").start()

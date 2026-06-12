@@ -11,31 +11,37 @@ _P = GFT_2STEP_PROFILE
 def daily_loss_from_snapshot(state: dict) -> float:
     """
     GFT daily loss = capital at 5PM EST yesterday − current capital.
-    Positive = loss, negative = gain.
+    Includes floating_pnl (open-position unrealized P&L) when present in state,
+    so the guard fires BEFORE an SL is hit, not after.
+    Positive return = loss, negative = gain.
     """
-    snapshot = state.get('gft_daily_snapshot', _P['account_size'])
-    capital  = state.get('capital', _P['account_size'])
-    return round(snapshot - capital, 2)
+    snapshot     = state.get('gft_daily_snapshot', _P['account_size'])
+    capital      = state.get('capital', _P['account_size'])
+    floating_pnl = state.get('floating_pnl', 0.0)
+    # floating_pnl is negative when in drawdown (open loss) — add it to capital
+    # so the effective equity reflects current exposure.
+    effective_capital = capital + floating_pnl
+    return round(snapshot - effective_capital, 2)
 
 
 def official_daily_loss_ok(state: dict) -> tuple[bool, str]:
     """
     Official GFT 4% daily loss rule ($200 on $5K).
-    Relative to 5PM EST equity snapshot.
+    Relative to 5PM EST equity snapshot, including floating P&L.
     """
     loss  = daily_loss_from_snapshot(state)
     limit = _P['official_daily_loss_usd']
     if loss >= limit:
         return False, (
             f"GFT official daily loss limit hit "
-            f"(${loss:.2f} ≥ ${limit:.2f} from 5PM snapshot)"
+            f"(${loss:.2f} ≥ ${limit:.2f} from 5PM snapshot, incl. floating)"
         )
     return True, 'OK'
 
 
 def get_internal_risk_mode(state: dict) -> tuple[str, str]:
     """
-    Internal daily loss guard tiers.
+    Internal daily loss guard tiers — includes floating P&L.
     Returns (mode, reason).
     mode: 'normal' | 'reduced' | 'paused' | 'warning'
     """

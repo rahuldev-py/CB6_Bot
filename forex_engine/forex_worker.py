@@ -1455,6 +1455,14 @@ class ForexWorker:
                 f"boost={_boost}×"
             )
 
+            # Minimum sim gate — skip trades below 60% similarity
+            _MIN_SIM = 0.60
+            if _sim_ratio < _MIN_SIM:
+                logger.info(
+                    f"FOREX {symbol}: SIM GATE — {_sim_ratio:.0%} < {_MIN_SIM:.0%} min — skip"
+                )
+                continue
+
             # ── Conviction evaluation (Phase 7) ──────────────────────────────
             # Must happen BEFORE lot sizing so grade affects position size.
             # Grade D → skip.  Grade C/B → lot reduction applied after sizing.

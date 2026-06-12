@@ -1,7 +1,7 @@
 {
   "_comment": "CB6 Quantum \u00e2\u20ac\u201d ML Model Registry. Tracks all trained model versions, metrics, and activation status. Updated automatically by training pipeline.",
   "registry_version": "1.0.0",
-  "last_updated": "2026-06-10T23:31:27.146403",
+  "last_updated": "2026-06-11T23:31:04.319761",
   "models": {
     "dnn_trade_scorer_nse": {
       "model_id": "dnn_trade_scorer_nse",
@@ -142,6 +142,21 @@
           "expected_r_mae": 1.5451,
           "activation_gate_passed": false,
           "model_path": "ml_engine\\models\\saved\\dnn_nse_v1_20260610_2330",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
+        },
+        {
+          "version_id": "dnn_nse_v1_20260611_2330",
+          "trained_at": "20260611_2330",
+          "train_samples": 604,
+          "val_samples": 151,
+          "accuracy": 0.5298,
+          "auc": 0.3271,
+          "f1": 0.6872,
+          "brier_score": 0.3073,
+          "expected_r_mae": 1.6349,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\dnn_nse_v1_20260611_2330",
           "shadow_predictions": 0,
           "shadow_accuracy": null
         }
@@ -288,6 +303,21 @@
           "expected_r_mae": 1.5354,
           "activation_gate_passed": true,
           "model_path": "ml_engine\\models\\saved\\dnn_forex_v1_20260610_2331",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
+        },
+        {
+          "version_id": "dnn_forex_v1_20260611_2330",
+          "trained_at": "20260611_2330",
+          "train_samples": 215,
+          "val_samples": 54,
+          "accuracy": 0.537,
+          "auc": 0.5669,
+          "f1": 0.6988,
+          "brier_score": 0.2678,
+          "expected_r_mae": 1.5974,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\dnn_forex_v1_20260611_2330",
           "shadow_predictions": 0,
           "shadow_accuracy": null
         }
@@ -590,6 +620,38 @@
           "model_path": "ml_engine\\models\\saved\\rnn_forex_v1_20260610_2331",
           "shadow_predictions": 0,
           "shadow_accuracy": null
+        },
+        {
+          "version_id": "rnn_nse_v1_20260611_2330",
+          "trained_at": "20260611_2330",
+          "train_samples": 604,
+          "val_samples": 151,
+          "seq_len": 10,
+          "accuracy": 0.5298,
+          "auc": 0.5735,
+          "f1": 0.6926,
+          "brier_score": 0.2876,
+          "expected_r_mae": 1.648,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\rnn_nse_v1_20260611_2330",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
+        },
+        {
+          "version_id": "rnn_forex_v1_20260611_2330",
+          "trained_at": "20260611_2330",
+          "train_samples": 215,
+          "val_samples": 54,
+          "seq_len": 10,
+          "accuracy": 0.537,
+          "auc": 0.4297,
+          "f1": 0.6988,
+          "brier_score": 0.2539,
+          "expected_r_mae": 1.6782,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\rnn_forex_v1_20260611_2330",
+          "shadow_predictions": 0,
+          "shadow_accuracy": null
         }
       ],
       "active_version": null,
@@ -873,6 +935,32 @@
           "brier_score": 0.2431,
           "activation_gate_passed": false,
           "model_path": "ml_engine\\models\\saved\\cnn_forex_v1_20260610_2331"
+        },
+        {
+          "version_id": "cnn_nse_v1_20260611_2330",
+          "trained_at": "20260611_2330",
+          "train_samples": 604,
+          "val_samples": 151,
+          "data_source": "synthetic",
+          "research_only": true,
+          "auc": 0.3967,
+          "f1": 0.7623,
+          "brier_score": 0.2649,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\cnn_nse_v1_20260611_2330"
+        },
+        {
+          "version_id": "cnn_forex_v1_20260611_2330",
+          "trained_at": "20260611_2330",
+          "train_samples": 215,
+          "val_samples": 54,
+          "data_source": "synthetic",
+          "research_only": true,
+          "auc": 0.4396,
+          "f1": 0.7442,
+          "brier_score": 0.242,
+          "activation_gate_passed": false,
+          "model_path": "ml_engine\\models\\saved\\cnn_forex_v1_20260611_2330"
         }
       ],
       "active_version": null,

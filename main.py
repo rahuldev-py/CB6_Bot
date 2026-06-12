@@ -1108,13 +1108,13 @@ def _safe_revalidate_auto_enabled() -> bool:
 
 
 def _parse_iso(ts: str):
-
+    """Parse ISO timestamp, always returning a timezone-aware UTC datetime or None."""
     try:
-
-        return datetime.fromisoformat(ts)
-
+        dt = datetime.fromisoformat(ts)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
     except Exception:
-
         return None
 
 
@@ -1255,7 +1255,7 @@ def _process_armed_revalidate_auto_signals():
 
         )
 
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(timezone.utc)
 
         armed = list_signals_by_state(SIGNAL_ARMED)
 
@@ -1722,9 +1722,22 @@ def run_silver_bullet_scan():
 
                 continue
 
-
+            # Normalise MTF cascade output inline
+            _raw_conf_sb = setup.get('confluence', 0)
+            if isinstance(_raw_conf_sb, dict):
+                setup['score_detail'] = _raw_conf_sb
+                setup['confluence']   = _raw_conf_sb.get('score', 0)
+            _es_sb = setup.get('entry_signal', {})
+            if _es_sb and not setup.get('fvg'):
+                setup['fvg'] = {'fvg_low': _es_sb.get('fvg_low', 0),
+                                'fvg_high': _es_sb.get('fvg_high', 0)}
+            if _es_sb and 'entry' not in setup:
+                setup['entry']     = _es_sb.get('entry', 0)
+                setup['stop_loss'] = _es_sb.get('stop_loss', 0)
 
             score     = setup.get('confluence', 0)
+            if isinstance(score, dict):
+                score = score.get('score', 0)
 
             direction = setup.get('direction', '')
 
@@ -1902,12 +1915,17 @@ def run_silver_bullet_scan():
 
                 # Ã¢"â¬Ã¢"â¬ Futures trade (primary - matches backtest data) Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬
 
-                place_futures_trade(fyers_instance, setup, paper_mode=False)
-
-                # Ã¢"â¬Ã¢"â¬ Options trade (secondary - if strike available) Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬Ã¢"â¬
-
-                # Options trade — ATM 1-lot via OptionsOrderManager
-                _trigger_options_entry(setup, symbol)
+                # Route: futures XOR options -- never both on the same signal.
+                # Placing both doubles capital at risk on a Rs 26K account.
+                try:
+                    from settings import NSE_FUTURES_ENABLED as _nse_fut
+                except Exception:
+                    _nse_fut = False
+                if _nse_fut:
+                    place_futures_trade(fyers_instance, setup, paper_mode=False)
+                else:
+                    # Options trade — ATM 1-lot via OptionsOrderManager
+                    _trigger_options_entry(setup, symbol)
 
             except Exception as oe:
 
@@ -1964,6 +1982,8 @@ _live_alerted:  set = set()
 
 _watch_alerted: set = set()
 
+_signal_fired_today: set = set()   # (date, symbol, direction) — SIGNAL_CREATED guard; never rolled back
+
 
 
 _LIVE_INSTRUMENTS = None   # populated on first call via get_active_futures()
@@ -2008,7 +2028,7 @@ def _nifty_live_scanner_inner():
 
 
 
-    global fyers_instance, _live_alerted, _watch_alerted, _LIVE_INSTRUMENTS
+    global fyers_instance, _live_alerted, _watch_alerted, _LIVE_INSTRUMENTS, _signal_fired_today, _sb_daily_taken
 
 
 
@@ -2070,9 +2090,11 @@ def _nifty_live_scanner_inner():
 
         # Flush yesterday's dedup entries
 
-        _live_alerted  = {k for k in _live_alerted  if k[0] == today}
+        _live_alerted        = {k for k in _live_alerted        if k[0] == today}
 
-        _watch_alerted = {k for k in _watch_alerted if k[0] == today}
+        _watch_alerted       = {k for k in _watch_alerted       if k[0] == today}
+
+        _signal_fired_today  = {k for k in _signal_fired_today  if k[0] == today}
 
 
 
@@ -2126,17 +2148,19 @@ def _nifty_live_scanner_inner():
 
                     continue
 
-
-
-                _trace("SIGNAL_CREATED", symbol,
-
-                       dir=setup.get('direction', '?'),
-
-                       score=setup.get('confluence', '?'),
-
-                       tf='3min', mode=EXECUTION_MODE)
-
-
+                # Normalise MTF cascade output inline: confluence may be a dict,
+                # fvg/entry/stop_loss may be nested under entry_signal.
+                _raw_conf = setup.get('confluence', 0)
+                if isinstance(_raw_conf, dict):
+                    setup['score_detail'] = _raw_conf
+                    setup['confluence']   = _raw_conf.get('score', 0)
+                _es = setup.get('entry_signal', {})
+                if _es and not setup.get('fvg'):
+                    setup['fvg'] = {'fvg_low': _es.get('fvg_low', 0),
+                                    'fvg_high': _es.get('fvg_high', 0)}
+                if _es and 'entry' not in setup:
+                    setup['entry']     = _es.get('entry', 0)
+                    setup['stop_loss'] = _es.get('stop_loss', 0)
 
                 direction = setup.get('direction', '')
 
@@ -2152,27 +2176,54 @@ def _nifty_live_scanner_inner():
 
                 # Atomic check-and-claim: claim the zone inside a single lock
                 # acquisition so no concurrent thread can pass the same check.
-                # If the trade is rejected downstream (score, ML, price outside
-                # FVG), we roll back to watch state so the next scan cycle can
-                # retry when conditions change.
+                # _watch_alerted: zone already scored/gated; price not yet at FVG.
+                #   → skip heavy gates, go straight to LTP check.
+                # _live_alerted / _sb_daily_taken: zone already traded today → skip.
+                # _signal_fired_today: keyed by (date, symbol, direction) — no fvg_key.
+                #   MTF cascade recomputes FVG fresh each cycle, so fvg_low drifts
+                #   and dedup_key changes every 15s.  _signal_fired_today is NEVER
+                #   rolled back, so SIGNAL_CREATED fires exactly once per direction.
+                _sc_key = (today, symbol, direction)
                 with _nse_dedup_lock:
 
                     if dedup_key in _live_alerted or dedup_key in _sb_daily_taken:
 
                         continue   # trade already entered for this zone today (either scanner)
 
+                    _is_watching_zone = dedup_key in _watch_alerted
+                    if _is_watching_zone:
+                        _watch_alerted.discard(dedup_key)   # reclaim while we re-check LTP
+
+                    _already_fired = _sc_key in _signal_fired_today
+
                     # Claim the zone immediately.  Roll back below if LTP is outside FVG.
                     _live_alerted.add(dedup_key)
 
                     _sb_daily_taken.add(dedup_key)
 
+                    if not _already_fired:
+                        _signal_fired_today.add(_sc_key)
 
 
-                score = setup.get('confluence', 0)
+
+                if not _already_fired:
+                    _trace("SIGNAL_CREATED", symbol,
+
+                           dir=setup.get('direction', '?'),
+
+                           score=setup.get('confluence', '?'),
+
+                           tf='3min', mode=EXECUTION_MODE)
+
+
 
                 setup['timeframe']       = '3min'
 
                 setup['instrument_type'] = 'INDEX'
+
+                score = setup.get('confluence', 0)
+                if isinstance(score, dict):
+                    score = score.get('score', 0)
 
 
 
@@ -2241,6 +2292,11 @@ def _nifty_live_scanner_inner():
 
                     )
 
+                    # Roll back dedup claim — zone should retry next cycle when score may improve.
+                    with _nse_dedup_lock:
+                        _live_alerted.discard(dedup_key)
+                        _sb_daily_taken.discard(dedup_key)
+
                     continue
 
 
@@ -2291,6 +2347,11 @@ def _nifty_live_scanner_inner():
 
                     logger.info(f"Live skip {name}: score {score} < gate {score_gate} | {decision}")
 
+                    # Roll back dedup claim — zone should retry next cycle.
+                    with _nse_dedup_lock:
+                        _live_alerted.discard(dedup_key)
+                        _sb_daily_taken.discard(dedup_key)
+
                     continue
 
 
@@ -2304,6 +2365,11 @@ def _nifty_live_scanner_inner():
                            score=score, mode=EXECUTION_MODE)
 
                     logger.info(f"Live alert-only {name}: {decision}")
+
+                    # Roll back dedup claim — pattern lib block doesn't mean the zone is spent.
+                    with _nse_dedup_lock:
+                        _live_alerted.discard(dedup_key)
+                        _sb_daily_taken.discard(dedup_key)
 
                     continue
 
@@ -3298,6 +3364,45 @@ def main():
     except Exception as _oom_e:
         logger.warning(f"OptionsOrderManager init failed: {_oom_e}")
 
+    # NSE HIGH-6: Restart SL monitor threads for live trades that survived a crash/restart.
+    # The paper state stores open_trades; live entries have order_id set.
+    # Without this, a restarted bot has no SL coverage for positions already open at the broker.
+    try:
+        from trader.paper_trader import load_state as _load_ps
+        from trader.order_manager import _start_sl_monitor as _restart_sl_mon
+        _ps = _load_ps()
+        _surviving = [t for t in _ps.get('open_trades', []) if t.get('order_id')]
+        if _surviving:
+            logger.warning(
+                f"NSE startup: {len(_surviving)} live trade(s) found in state — "
+                f"restarting SL monitors"
+            )
+            for _lt in _surviving:
+                try:
+                    _restart_sl_mon(fyers_instance, _lt['order_id'], _lt)
+                    logger.info(
+                        f"NSE startup: SL monitor restarted for "
+                        f"{_lt.get('symbol')} order={_lt.get('order_id')}"
+                    )
+                except Exception as _rem:
+                    logger.error(
+                        f"NSE startup: SL monitor restart failed for "
+                        f"{_lt.get('symbol')}: {_rem}"
+                    )
+            try:
+                from utils.telegram_alerts import send_message as _tg
+                _tg(
+                    f"<b>⚠️ NSE RESTART RECOVERY</b>\n"
+                    f"{len(_surviving)} open trade(s) detected — SL monitors restarted.\n"
+                    f"Symbols: {', '.join(t.get('symbol','?') for t in _surviving)}"
+                )
+            except Exception:
+                pass
+        else:
+            logger.info("NSE startup: no surviving live trades — fresh start")
+    except Exception as _h6e:
+        logger.warning(f"NSE startup: SL monitor restart check failed: {_h6e}")
+
     # Share live fyers session with dashboard so backtest doesn't need a fresh token
 
     try:
@@ -3746,6 +3851,29 @@ def main():
         logger.error(f"Listener error: {e}")
 
 
+
+    # ── ML gate status — warn operators when NSE gate is a no-op ─────────────────
+    try:
+        import json as _mj
+        _reg_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  'ml_engine', 'config', 'model_registry.json')
+        with open(_reg_path, encoding='utf-8') as _rf:
+            _reg = _mj.load(_rf)
+        _nse_active = [
+            v for v in _reg.values()
+            if isinstance(v, dict) and v.get('market') == 'nse'
+            and v.get('activation_gate_passed') is True
+        ]
+        if not _nse_active:
+            logger.warning(
+                "NSE ML GATE IS A NO-OP — no NSE model has passed the activation gate "
+                "(AUC < 0.56 on all versions). Entries are gated by ICT structure only. "
+                "Run /ml_train to retrain; models activate automatically when AUC ≥ 0.56."
+            )
+        else:
+            logger.info(f"NSE ML gate: {len(_nse_active)} active model(s)")
+    except Exception as _ml_reg_e:
+        logger.debug(f"ML registry check skipped: {_ml_reg_e}")
 
     logger.info("=" * 45)
 

@@ -115,6 +115,9 @@ def build_gft_1k_instant_connector(paper: Optional[bool] = None):
         terminal_path=terminal_path,
         symbol_overrides=symbol_overrides,
     )
+    connector.set_alert_callback(
+        lambda msg: _send_telegram_alert("mt5_connected", f"[{account_id}] {msg}")
+    )
     _send_telegram_alert(
         "mt5_connected",
         f"[{account_id}] MT5 connected login={credentials['login']} server={credentials['server']}",

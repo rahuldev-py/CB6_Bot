@@ -29,7 +29,8 @@ from forex_engine.gft_10k.state import (
 )
 from forex_engine.scanner.signal_scanner import scan_setup, in_rollover_window
 from forex_engine.scanner.structure_scanner import get_h1_bias, get_h4_bias
-from forex_engine.scanner.mtf_scanner import scan_mtf_cascade
+from forex_engine.scanner.mtf_scanner import scan_mtf_cascade, granular_mtf_confirm
+from forex_engine.prop_firms.gft.gft_anti_hedge_guard import check_no_same_symbol
 from forex_engine.scanner.adaptive_gate import evaluate_adaptive_gate as _eval_ag, log_gate_decision as _log_ag
 from settings import CB6_ADAPTIVE_TRADE_GATE_ENABLED as _ADAPTIVE_GATE_ENABLED
 from forex_engine.forex_instruments import INSTRUMENTS
@@ -98,6 +99,13 @@ class GFT10KWorker:
         if df is None or len(df) < 40:
             return
 
+        # Per-symbol position guard — same as $1K engine
+        _pre_state_10k = load_state()
+        _sym_ok_10k, _sym_reason_10k = check_no_same_symbol(_pre_state_10k, symbol, max_positions=1)
+        if not _sym_ok_10k:
+            logger.info(f"GFT 10K {symbol}: BLOCKED — {_sym_reason_10k}")
+            return
+
         _h4_pre = get_h4_bias(self._connector, symbol)
         if not any(s <= datetime.now(timezone.utc).hour < e for s, e in [(7, 12), (16, 20)]):
             return
@@ -106,6 +114,23 @@ class GFT10KWorker:
             setup = scan_mtf_cascade(self._connector, symbol, h4_bias=_h4_pre, min_rr=_P["min_rr"])
             if not setup:
                 return
+
+        # Granular 6-TF entry confirmation (same gate as $1K engine — 45m→30m→15m→5m→2m→1m)
+        _gran_10k = granular_mtf_confirm(
+            self._connector, symbol, setup['direction'], _h4_pre
+        )
+        if not _gran_10k['confirmed']:
+            logger.info(
+                f"GFT 10K {symbol}: granular MTF BLOCKED — "
+                f"{_gran_10k['blocking_reason']} (score={_gran_10k['score']}/6)"
+            )
+            return
+        if _gran_10k['size_multiplier'] < float(setup.get('size_multiplier', 1.0) or 1.0):
+            setup['size_multiplier'] = _gran_10k['size_multiplier']
+        if _gran_10k['t1_only']:
+            setup['t1_only'] = True
+        setup['granular_mtf_score']  = _gran_10k['score']
+        setup['granular_mtf_action'] = _gran_10k['action']
 
         direction = setup["direction"]
         h1_bias   = get_h1_bias(self._connector, symbol)
@@ -203,19 +228,32 @@ class GFT10KWorker:
 
         logger.info(f"GFT 10K {symbol}: APPROVED {direction} {lots:.2f}L risk=${risk_usd:.2f}")
 
+        # Determine order type: LIMIT when LTP drifted >25% of SL distance from FVG entry,
+        # MARKET when close enough for a clean fill.
+        # BUY LIMIT valid only when entry < LTP; SELL LIMIT valid only when entry > LTP.
+        _use_limit_10k = False
+        _cur_px_10k    = None
         if not self._paper:
             _cur_px_10k = self._connector.get_price(symbol)
             if _cur_px_10k:
-                _max_drift_10k = abs(signal["entry"] - signal["stop_loss"]) * 0.25
-                _drift_10k     = abs(_cur_px_10k - signal["entry"])
-                if _drift_10k > _max_drift_10k:
+                _sl_dist_10k = abs(signal["entry"] - signal["stop_loss"])
+                _drift_10k   = abs(_cur_px_10k - signal["entry"])
+                if _drift_10k > _sl_dist_10k * 0.25:
+                    _is_long_10k = direction in ("BULLISH", "BUY")
+                    _lmt_ok_10k  = (_is_long_10k and signal["entry"] < _cur_px_10k) or \
+                                   (not _is_long_10k and signal["entry"] > _cur_px_10k)
+                    if not _lmt_ok_10k:
+                        logger.info(
+                            f"GFT 10K {symbol}: PRICE DRIFTED past entry — "
+                            f"entry={signal['entry']:.5f} LTP={_cur_px_10k:.5f} — skip"
+                        )
+                        return
+                    _use_limit_10k = True
                     logger.info(
                         f"GFT 10K {symbol}: PRICE DRIFTED — "
                         f"entry={signal['entry']:.5f} LTP={_cur_px_10k:.5f} "
-                        f"drift={_drift_10k:.5f} > max={_max_drift_10k:.5f}. "
-                        f"Waiting for retrace to FVG entry level."
+                        f"drift={_drift_10k:.5f} — using LIMIT order"
                     )
-                    return
 
         trade = self._open_trade_state(setup, lots, risk_usd)
         if not trade:
@@ -223,26 +261,62 @@ class GFT10KWorker:
         self._dedup.mark_seen(symbol, direction, fvg_low)
 
         if not self._paper and not lock_state.get("dry_run", True):
-            result = self._connector.place_market_order(
-                symbol=symbol,
-                direction="BUY" if direction == "BULLISH" else "SELL",
-                lots=lots,
-                sl=signal["stop_loss"],
-                tp=signal.get("target2") or signal.get("target1") or 0.0,
-                magic=_P["magic"],
-            )
-            if not result:
-                self._rollback_trade(trade["id"], risk_usd)
-                logger.error(f"GFT 10K {symbol}: MT5 order failed")
-                return
-            self._update_ticket(trade["id"], result.get("ticket", 0))
-            ticket = result.get("ticket", 0)
-            logger.info(f"GFT 10K {symbol}: executed ticket={ticket} lots={lots:.2f}")
-            self._alert(
-                f"<b>GFT 10K — TRADE EXECUTED</b>\n"
-                f"{symbol} {direction}  {lots:.2f}L  risk=${risk_usd:.2f}\n"
-                f"Entry={signal['entry']}  SL={signal['stop_loss']}  ticket={ticket}"
-            )
+            if _use_limit_10k:
+                from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+                _now_utc = _dt.now(_tz.utc)
+                _h = _now_utc.hour
+                if 7 <= _h < 12:
+                    _kz_end = _now_utc.replace(hour=12, minute=0, second=0, microsecond=0)
+                elif 16 <= _h < 20:
+                    _kz_end = _now_utc.replace(hour=20, minute=0, second=0, microsecond=0)
+                else:
+                    _kz_end = _now_utc + _td(hours=1)
+                _expiry_10k = min(_kz_end, _now_utc + _td(hours=2))
+                result = self._connector.place_limit_order(
+                    symbol=symbol,
+                    direction="BUY" if direction == "BULLISH" else "SELL",
+                    lots=lots,
+                    entry=signal["entry"],
+                    sl=signal["stop_loss"],
+                    tp=signal.get("target2") or signal.get("target1") or 0.0,
+                    magic=_P["magic"],
+                    expiry=_expiry_10k,
+                )
+                if not result:
+                    self._rollback_trade(trade["id"], risk_usd)
+                    logger.error(f"GFT 10K {symbol}: MT5 LIMIT order failed")
+                    self._alert(f"⚠️ GFT 10K LIMIT order FAILED for {symbol}.")
+                    return
+                self._update_ticket(trade["id"], result.get("ticket", 0))
+                ticket = result.get("ticket", 0)
+                logger.info(f"GFT 10K {symbol}: LIMIT placed ticket={ticket} @ {signal['entry']:.5f}")
+                self._alert(
+                    f"<b>GFT 10K — LIMIT PLACED</b>\n"
+                    f"{symbol} {direction}  {lots:.2f}L  risk=${risk_usd:.2f}\n"
+                    f"Entry={signal['entry']}  SL={signal['stop_loss']}  ticket={ticket}\n"
+                    f"Expires {_expiry_10k.strftime('%H:%M')} UTC"
+                )
+            else:
+                result = self._connector.place_market_order(
+                    symbol=symbol,
+                    direction="BUY" if direction == "BULLISH" else "SELL",
+                    lots=lots,
+                    sl=signal["stop_loss"],
+                    tp=signal.get("target2") or signal.get("target1") or 0.0,
+                    magic=_P["magic"],
+                )
+                if not result:
+                    self._rollback_trade(trade["id"], risk_usd)
+                    logger.error(f"GFT 10K {symbol}: MT5 order failed")
+                    return
+                self._update_ticket(trade["id"], result.get("ticket", 0))
+                ticket = result.get("ticket", 0)
+                logger.info(f"GFT 10K {symbol}: executed ticket={ticket} lots={lots:.2f}")
+                self._alert(
+                    f"<b>GFT 10K — TRADE EXECUTED</b>\n"
+                    f"{symbol} {direction}  {lots:.2f}L  risk=${risk_usd:.2f}\n"
+                    f"Entry={signal['entry']}  SL={signal['stop_loss']}  ticket={ticket}"
+                )
 
     def _open_trade_state(self, setup: dict, lots: float, risk_usd: float) -> dict:
         state  = reset_daily_if_needed(load_state())
@@ -269,6 +343,15 @@ class GFT10KWorker:
             state.get("available_capital", _P["account_size"]) - risk_usd, 2
         )
         save_state(state)
+        try:
+            from utils.audit_log import append as _audit
+            _audit("ORDER_PLACED", "gft_10k", "forex",
+                   trade_id=trade["id"], symbol=trade["symbol"],
+                   direction=trade["direction"], lots=trade["lots"],
+                   entry=trade["entry_price"], sl=trade["stop_loss"],
+                   risk_usd=risk_usd)
+        except Exception:
+            pass
         return trade
 
     def _rollback_trade(self, trade_id: str, risk_usd: float) -> None:
@@ -293,54 +376,150 @@ class GFT10KWorker:
         except Exception as exc:
             logger.debug(f"GFT 10K Telegram alert skipped: {exc}")
 
+    def _reconcile_on_startup(self):
+        """Diff state open_trades against live broker positions at startup.
+        Closes ghost trades (state=open but broker=gone) with actual deal P&L."""
+        if self._paper:
+            return
+        try:
+            live_positions = self._connector.get_live_positions(_P["magic"])
+        except Exception as _e:
+            logger.error(f"GFT 10K reconcile: failed to fetch live positions — {_e}")
+            return
+
+        live_tickets = {p['ticket'] for p in live_positions} if live_positions else set()
+        state  = load_state()
+        ghosts = [
+            t for t in state.get('open_trades', [])
+            if t.get('ticket', 0) not in live_tickets and t.get('ticket', 0) != 0
+        ]
+        if not ghosts:
+            logger.info(
+                f"GFT 10K reconcile: OK — {len(state.get('open_trades', []))} state trade(s) "
+                f"match broker ({len(live_tickets)} live position(s))"
+            )
+            return
+
+        logger.warning(f"GFT 10K reconcile: {len(ghosts)} ghost trade(s) — closing offline")
+        for ghost in ghosts:
+            ticket    = ghost.get('ticket', 0)
+            sym       = ghost.get('symbol', '?')
+            entry     = float(ghost.get('entry_price', 0))
+            lots      = float(ghost.get('lots', 0))
+            dire      = ghost.get('direction', 'BULLISH')
+            close_px, pnl = 0.0, 0.0
+            try:
+                close_px, pnl = self._connector.get_last_deal_for_ticket(ticket)
+            except Exception:
+                pass
+            if not close_px:
+                close_px = self._connector.get_price(sym) or entry
+                pnl = round((close_px - entry) * lots * (100 if 'XAU' in sym else 1000) *
+                             (1 if dire == 'BULLISH' else -1), 2)
+
+            state['capital']     = round(state.get('capital',    _P['account_size']) + pnl, 2)
+            state['daily_pnl']   = round(state.get('daily_pnl', 0.0) + pnl, 2)
+            state['open_trades'] = [t for t in state['open_trades'] if t.get('id') != ghost.get('id')]
+            logger.warning(f"GFT 10K reconcile: ghost closed — {sym} ticket={ticket} pnl=${pnl:.2f}")
+            self._alert(
+                f"<b>GFT 10K — RECONCILE OFFLINE CLOSE</b>\n"
+                f"{sym} ticket={ticket} exit={close_px:.5f} pnl=${pnl:.2f}"
+            )
+        save_state(state)
+
     def _position_monitor_loop(self):
         """Polls MT5 every 15s — detects SL/TP hits on open trades and sends Telegram alert."""
         while self._running:
             try:
                 state = load_state()
                 open_trades = state.get("open_trades", [])
-                if open_trades and not self._paper:
-                    live_tickets = set()
+
+                if not self._paper:
+                    # Update floating P&L every cycle so daily_drawdown() sees unrealized losses
                     try:
-                        positions    = self._connector.get_open_positions()
-                        live_tickets = {str(p.get("ticket", 0)) for p in (positions or [])}
+                        _eq  = self._connector.get_equity()
+                        _bal = self._connector.get_balance()
+                        if _eq and _bal:
+                            state["floating_pnl"] = round(_eq - _bal, 2)
+                            state["live_equity"]   = round(_eq, 2)
+                            state["live_balance"]  = round(_bal, 2)
+                            save_state(state)
                     except Exception:
                         pass
-                    closed_now = [t for t in open_trades
-                                  if str(t.get("ticket", 0)) not in ("0", "") and
-                                  str(t.get("ticket", 0)) not in live_tickets]
-                    if closed_now:
-                        for trade in closed_now:
-                            sym   = trade.get("symbol", "?")
-                            dire  = trade.get("direction", "?")
-                            entry = trade.get("entry_price", 0)
-                            sl    = trade.get("stop_loss", 0)
-                            tp    = trade.get("target", 0)
-                            lots  = trade.get("lots", 0)
-                            try:
-                                tick     = self._connector.get_tick(sym)
-                                close_px = tick.bid if dire == "BULLISH" else tick.ask if tick else 0
-                            except Exception:
-                                close_px = 0
-                            if close_px and sl:
-                                hit = "SL" if (
-                                    (dire == "BULLISH" and close_px <= float(sl) * 1.001) or
-                                    (dire == "BEARISH" and close_px >= float(sl) * 0.999)
-                                ) else "TP"
-                            else:
+
+                    if open_trades:
+                        live_tickets = set()
+                        try:
+                            positions    = self._connector.get_open_positions()
+                            live_tickets = {str(p.get("ticket", 0)) for p in (positions or [])}
+                        except Exception:
+                            pass
+                        closed_now = [
+                            t for t in open_trades
+                            if str(t.get("ticket", 0)) not in ("0", "") and
+                               str(t.get("ticket", 0)) not in live_tickets
+                        ]
+                        if closed_now:
+                            for trade in closed_now:
+                                sym        = trade.get("symbol", "?")
+                                dire       = trade.get("direction", "?")
+                                entry      = float(trade.get("entry_price", 0))
+                                sl         = float(trade.get("stop_loss", 0))
+                                lots       = float(trade.get("lots", 0))
+                                ticket_int = int(trade.get("ticket", 0) or 0)
+
+                                # Use actual deal history for close price + P&L
+                                close_px, actual_pnl = 0.0, None
+                                try:
+                                    close_px, actual_pnl = self._connector.get_last_deal_for_ticket(ticket_int)
+                                except Exception:
+                                    pass
+                                if not close_px:
+                                    try:
+                                        close_px = self._connector.get_price(sym) or 0.0
+                                    except Exception:
+                                        close_px = 0.0
+
                                 hit = "CLOSED"
-                            pnl_est = ""
-                            if close_px and entry:
-                                pnl_est = f"  ~${round((close_px - float(entry)) * float(lots) * (100 if 'XAU' in sym else 1000) * (1 if dire == 'BULLISH' else -1), 2):+.2f}"
-                            self._alert(
-                                f"<b>GFT 10K — {hit}</b>\n"
-                                f"{sym} {dire}  {lots}L  @ {close_px:.2f}{pnl_est}\n"
-                                f"entry={entry}  SL={sl}  ticket={trade.get('ticket')}"
-                            )
-                            logger.info(f"GFT 10K {sym}: {hit} detected ticket={trade.get('ticket')}")
-                        closed_ids           = {t["id"] for t in closed_now}
-                        state["open_trades"] = [t for t in open_trades if t["id"] not in closed_ids]
-                        save_state(state)
+                                if close_px and sl:
+                                    hit = "SL" if (
+                                        (dire == "BULLISH" and close_px <= sl * 1.001) or
+                                        (dire == "BEARISH" and close_px >= sl * 0.999)
+                                    ) else "TP"
+
+                                pnl = actual_pnl if actual_pnl is not None else (
+                                    round((close_px - entry) * lots * (100 if "XAU" in sym else 1000) *
+                                          (1 if dire == "BULLISH" else -1), 2)
+                                    if close_px and entry else 0
+                                )
+                                pnl_str = f"  ${pnl:+.2f}" if pnl else ""
+
+                                self._alert(
+                                    f"<b>GFT 10K — {hit}</b>\n"
+                                    f"{sym} {dire}  {lots}L  @ {close_px:.2f}{pnl_str}\n"
+                                    f"entry={entry}  SL={sl}  ticket={ticket_int}"
+                                )
+                                logger.info(f"GFT 10K {sym}: {hit} detected ticket={ticket_int} pnl={pnl:+.2f}")
+
+                                # Update capital and daily P&L with actual result
+                                state["capital"]     = round(state.get("capital", _P["account_size"]) + pnl, 2)
+                                state["daily_pnl"]   = round(state.get("daily_pnl", 0.0) + pnl, 2)
+                                state["available_capital"] = round(
+                                    state.get("available_capital", _P["account_size"]) + trade.get("risk_usd", 0), 2
+                                )
+
+                                try:
+                                    from utils.audit_log import append as _audit
+                                    _audit("POSITION_CLOSED", "gft_10k", "forex",
+                                           symbol=sym, ticket=ticket_int, direction=dire,
+                                           lots=lots, entry=entry, close_px=close_px,
+                                           pnl=pnl, hit=hit)
+                                except Exception:
+                                    pass
+
+                            closed_ids           = {t["id"] for t in closed_now}
+                            state["open_trades"] = [t for t in open_trades if t["id"] not in closed_ids]
+                            save_state(state)
             except Exception as exc:
                 logger.debug(f"GFT 10K position monitor: {exc}")
             time.sleep(15)
@@ -365,6 +544,17 @@ class GFT10KWorker:
         logger.info(f"Daily DD  : ${_P['daily_dd_limit']:.0f} (hard stop)")
         logger.info(f"Mode      : {'Paper' if self._paper else 'LIVE — GFT $10K'}")
         logger.info("=" * 55)
+
+        # Reconcile state vs broker before entering main loop
+        self._reconcile_on_startup()
+
+        # REST control plane on localhost:7375
+        try:
+            from utils.control_server import start as _cs_start, set_state_loader as _cs_loader
+            _cs_loader(load_state)
+            _cs_start(port=7375)
+        except Exception as _cse:
+            logger.warning(f"GFT 10K control server failed to start: {_cse}")
 
         threading.Thread(target=self._heartbeat_loop,       daemon=True, name="GFT10KHeartbeat").start()
         threading.Thread(target=self._position_monitor_loop, daemon=True, name="GFT10KPositionMonitor").start()

@@ -1,7 +1,44 @@
+# Credentials & secrets
 .env
+*.env.*
+
+# Python
 venv/
-logs/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# Logs
+logs/
+*.log
+
+# Data & state (real money account state — never commit)
 data/
+
+# ML models (large binaries — use Git LFS or external storage)
+ml_engine/models/saved/
+ml_engine/memory/*.sqlite
+ml_engine/memory/*.db
+
+# Reports & agent output (generated, not source)
+agent_reports/
+reports/
+
+# VS Code local settings
+.vscode/settings.json
+.vscode/launch.json
+
+# Claude Code local config (hooks, tokens)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Misc
 *.xlsx
+*.csv
+*.bak

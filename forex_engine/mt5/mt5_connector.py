@@ -27,10 +27,12 @@ import pandas as pd
 
 _TF_MAP = {
     '1m' : 1,
+    '2m' : 2,    # MT5 TIMEFRAME_M2 — granular MTF confirmation chain
     '3m' : 3,    # MT5 TIMEFRAME_M3 — used for XAUUSD Silver Bullet 3m backtest-validated TF
     '5m' : 5,
     '15m': 15,
     '30m': 30,
+    '45m': 45,   # MT5 TIMEFRAME_M45 — granular MTF confirmation chain
     '1h' : 16385,
     '4h' : 16388,
     '1d' : 16408,
@@ -77,9 +79,27 @@ class MT5Connector:
         self._symbol_overrides = symbol_overrides or {}
         self._running          = False
         self._poll_thread: Optional[threading.Thread] = None
+        self._alert_callback   = None  # set by owner to route alerts to the right Telegram bot
 
         if not paper:
             self._connect()
+
+    def set_alert_callback(self, fn):
+        """Wire a callable(message: str) so reconnect alerts go to the right Telegram bot."""
+        self._alert_callback = fn
+
+    def _broadcast_alert(self, message: str):
+        if self._alert_callback:
+            try:
+                self._alert_callback(message)
+            except Exception:
+                pass
+        else:
+            try:
+                from communications.forex_bot import send_alert as _fb
+                _fb(message)
+            except Exception:
+                pass
 
     def _resolve_sym(self, mt5_sym: str) -> str:
         """Apply broker-specific symbol name override (e.g. XAGUSD→XAGUSD.x on GFT)."""
@@ -186,11 +206,7 @@ class MT5Connector:
                 if self.is_connected():
                     logger.info(f"MT5 reconnected on attempt {attempt} (login={login})")
                     try:
-                        from communications.forex_bot import send_alert as _mt5_alert
-                        _mt5_alert(
-                            f"🟢 <b>MT5 Reconnected</b>\n"
-                            f"Login <code>{login}</code> restored on attempt {attempt}."
-                        )
+                        self._broadcast_alert(f"MT5 Reconnected — login={login} attempt={attempt}")
                     except Exception:
                         pass
                     return True
@@ -201,13 +217,7 @@ class MT5Connector:
 
         logger.error("MT5 reconnect failed after all attempts")
         try:
-            from communications.forex_bot import send_alert as _mt5_alert
-            _mt5_alert(
-                "🔴 <b>MT5 RECONNECT FAILED</b>\n\n"
-                "All reconnect attempts exhausted.\n"
-                "Engine is running but <b>cannot place or close orders</b>.\n"
-                "Check MT5 terminal + internet connection immediately."
-            )
+            self._broadcast_alert(f"MT5 RECONNECT FAILED — login={login} — cannot place orders, check terminal")
         except Exception:
             pass
         return False
@@ -278,13 +288,13 @@ class MT5Connector:
             cfg    = INSTRUMENTS.get(symbol, {})
             ticker = cfg.get('yf_ticker', symbol)
 
-            yf_iv_map = {'1m': '1m', '3m': '5m', '5m': '5m', '15m': '15m',
-                         '30m': '30m', '1h': '60m', '4h': '1d', '1d': '1d'}
-            # Note: yfinance has no 3-minute interval — '3m' maps to '5m' for paper mode
+            yf_iv_map = {'1m': '1m', '2m': '2m', '3m': '5m', '5m': '5m', '15m': '15m',
+                         '30m': '30m', '45m': '30m', '1h': '60m', '4h': '1d', '1d': '1d'}
+            # Note: yfinance has no 3m/45m intervals — '3m'→'5m', '45m'→'30m' for paper mode
             yf_iv = yf_iv_map.get(interval, '15m')
 
-            mins_per = {'1m': 1, '3m': 3, '5m': 5, '15m': 15, '30m': 30,
-                        '1h': 60, '4h': 240, '1d': 1440}
+            mins_per = {'1m': 1, '2m': 2, '3m': 3, '5m': 5, '15m': 15, '30m': 30,
+                        '45m': 45, '1h': 60, '4h': 240, '1d': 1440}
             total_m = mins_per.get(interval, 15) * limit
             if   total_m <= 7   * 1440: period = '7d'
             elif total_m <= 30  * 1440: period = '30d'
@@ -377,8 +387,16 @@ class MT5Connector:
             mt5.symbol_select(mt5_sym, True)
             tick    = mt5.symbol_info_tick(mt5_sym)
             if not tick:
-                logger.error(f"MT5: no tick for {mt5_sym}")
-                return None
+                # No tick = broker session likely dropped even though terminal_info shows connected.
+                # Force a hard reconnect and retry once.
+                logger.warning(f"MT5: no tick for {mt5_sym} — forcing reconnect and retry")
+                self._connected = False
+                if self.ensure_connected():
+                    mt5.symbol_select(mt5_sym, True)
+                    tick = mt5.symbol_info_tick(mt5_sym)
+                if not tick:
+                    logger.error(f"MT5: no tick for {mt5_sym} after reconnect — broker session unavailable")
+                    return None
 
             is_long    = direction in ('BUY', 'BULLISH')
             order_type = mt5.ORDER_TYPE_BUY if is_long else mt5.ORDER_TYPE_SELL
@@ -417,7 +435,8 @@ class MT5Connector:
                         'symbol': symbol, 'direction': direction, 'lots': lots}
             else:
                 err = result.comment if result else 'no result'
-                logger.error(f"MT5 order failed: {symbol} {direction} — {err}")
+                retcode = result.retcode if result else -1
+                logger.error(f"MT5 order failed: {symbol} {direction} — retcode={retcode} {err}")
                 return None
         except Exception as e:
             logger.error(f"MT5 place_market_order ({symbol}): {e}")
@@ -507,6 +526,54 @@ class MT5Connector:
             logger.error(f"MT5 cancel_order ({ticket}): {e}")
             return False
 
+    def get_live_positions(self, magic: int = None) -> list:
+        """Return all open positions (optionally filtered by magic number)."""
+        if self._paper or not _MT5_AVAILABLE:
+            return []
+        try:
+            positions = mt5.positions_get() or []
+            result = []
+            for p in positions:
+                if magic is not None and p.magic != magic:
+                    continue
+                result.append({
+                    'ticket'    : p.ticket,
+                    'symbol'    : p.symbol,
+                    'lots'      : p.volume,
+                    'price_open': p.price_open,
+                    'price_curr': p.price_current,
+                    'profit'    : p.profit,
+                    'magic'     : p.magic,
+                    'type'      : 'BUY' if p.type == 0 else 'SELL',
+                })
+            return result
+        except Exception as e:
+            logger.error(f"MT5 get_live_positions: {e}")
+            return []
+
+    def get_last_deal_for_ticket(self, ticket: int) -> tuple:
+        """
+        Fetch the closing deal for a position ticket from MT5 deal history.
+        Returns (close_price, profit_usd) or (None, None) if not found.
+        """
+        if self._paper or not _MT5_AVAILABLE:
+            return None, None
+        try:
+            from datetime import datetime, timedelta
+            date_from = datetime(2020, 1, 1)
+            date_to   = datetime.now() + timedelta(days=1)
+            deals = mt5.history_deals_get(date_from, date_to, position=ticket)
+            if not deals:
+                return None, None
+            # The closing deal is the one with entry == DEAL_ENTRY_OUT (1)
+            for d in reversed(deals):
+                if d.entry == 1:  # DEAL_ENTRY_OUT
+                    return float(d.price), float(d.profit)
+            return None, None
+        except Exception as e:
+            logger.error(f"MT5 get_last_deal_for_ticket ({ticket}): {e}")
+            return None, None
+
     def get_pending_order(self, ticket: int) -> Optional[dict]:
         """Return pending order info if it still exists, or None if filled/expired."""
         if self._paper:
@@ -524,8 +591,30 @@ class MT5Connector:
             logger.error(f"MT5 get_pending_order ({ticket}): {e}")
             return None
 
+    def _get_filling_mode(self, mt5_sym: str) -> int:
+        """
+        Return the first supported ORDER_FILLING_* constant for this symbol.
+        MT5 symbol_info().filling_mode is a bitmask:
+          bit 0 (1) = FOK, bit 1 (2) = IOC, bit 2 (4) = RETURN.
+        Falls back to IOC if the info is unavailable.
+        """
+        try:
+            info = mt5.symbol_info(mt5_sym)
+            if info is None:
+                return mt5.ORDER_FILLING_IOC
+            fm = info.filling_mode
+            if fm & 1:    # FOK
+                return mt5.ORDER_FILLING_FOK
+            if fm & 2:    # IOC
+                return mt5.ORDER_FILLING_IOC
+            if fm & 4:    # RETURN (fill remainder)
+                return mt5.ORDER_FILLING_RETURN
+        except Exception:
+            pass
+        return mt5.ORDER_FILLING_IOC
+
     def close_position(self, symbol: str, ticket: int, lots: float,
-                       direction: str) -> bool:
+                       direction: str, magic: int = 62002) -> bool:
         if self._paper:
             logger.info(f"[PAPER] Close {symbol} ticket={ticket} {lots}L")
             return True
@@ -542,9 +631,10 @@ class MT5Connector:
             if not tick:
                 return False
 
-            is_long    = direction in ('BUY', 'BULLISH')
-            close_type = mt5.ORDER_TYPE_SELL if is_long else mt5.ORDER_TYPE_BUY
-            price      = tick.bid if is_long else tick.ask
+            is_long      = direction in ('BUY', 'BULLISH')
+            close_type   = mt5.ORDER_TYPE_SELL if is_long else mt5.ORDER_TYPE_BUY
+            price        = tick.bid if is_long else tick.ask
+            filling_mode = self._get_filling_mode(mt5_sym)
 
             request = {
                 'action'      : mt5.TRADE_ACTION_DEAL,
@@ -554,23 +644,30 @@ class MT5Connector:
                 'position'    : ticket,
                 'price'       : price,
                 'deviation'   : 20,
-                'magic'       : 62002,
+                'magic'       : magic,
                 'comment'     : 'CB6_Quantum_close',
                 'type_time'   : mt5.ORDER_TIME_GTC,
-                'type_filling': mt5.ORDER_FILLING_IOC,
+                'type_filling': filling_mode,
             }
             result = mt5.order_send(request)
             if result and result.retcode == mt5.TRADE_RETCODE_DONE:
                 logger.info(f"MT5 closed: {symbol} ticket={ticket}")
                 return True
+            retcode = result.retcode if result else -1
             logger.error(f"MT5 close failed: {symbol} ticket={ticket} — "
-                         f"{result.comment if result else 'no result'}")
+                         f"retcode={retcode} {result.comment if result else 'no result'}")
             return False
         except Exception as e:
             logger.error(f"MT5 close_position ({symbol}): {e}")
             return False
 
-    def modify_sl(self, symbol: str, ticket: int, new_sl: float) -> bool:
+    def modify_sl(self, symbol: str, ticket: int, new_sl: float,
+                  tp: float = None) -> bool:
+        """
+        Modify SL on an open position.
+        tp: explicit take-profit to keep. If None, the broker's current TP is preserved.
+            Pass tp=0.0 only if you intentionally want to remove the TP.
+        """
         if self._paper:
             logger.info(f"[PAPER] Modify SL: {symbol} ticket={ticket} → {new_sl:.5f}")
             return True
@@ -584,19 +681,31 @@ class MT5Connector:
             mt5_sym = self._resolve_sym(cfg.get('mt5_symbol', symbol))
             pos     = mt5.positions_get(ticket=ticket)
             if not pos:
+                logger.warning(f"MT5 modify_sl: no position found for ticket={ticket} {symbol}")
                 return False
             p = pos[0]
+            # Use caller-supplied TP if given; otherwise keep whatever the broker has.
+            # Never accidentally send tp=0 unless the caller explicitly chose it.
+            effective_tp = tp if tp is not None else p.tp
             request = {
                 'action'  : mt5.TRADE_ACTION_SLTP,
                 'symbol'  : mt5_sym,
                 'sl'      : new_sl,
-                'tp'      : p.tp,
+                'tp'      : effective_tp,
                 'position': ticket,
             }
             result = mt5.order_send(request)
             if result and result.retcode == mt5.TRADE_RETCODE_DONE:
-                logger.info(f"MT5 SL modified: {symbol} ticket={ticket} → {new_sl:.5f}")
+                logger.info(
+                    f"MT5 SL modified: {symbol} ticket={ticket} "
+                    f"sl={new_sl:.5f} tp={effective_tp:.5f}"
+                )
                 return True
+            logger.error(
+                f"MT5 modify_sl failed: {symbol} ticket={ticket} — "
+                f"retcode={result.retcode if result else 'N/A'} "
+                f"{result.comment if result else 'no result'}"
+            )
             return False
         except Exception as e:
             logger.error(f"MT5 modify_sl ({symbol}): {e}")

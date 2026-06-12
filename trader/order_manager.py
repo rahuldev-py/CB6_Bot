@@ -1078,10 +1078,11 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
     target2    = trade['target2']
     sl         = trade['current_sl']
     qty_left   = trade['quantity']
-    lot_size   = trade['lot_size']
-    direction  = trade.get('direction', 'BULLISH')
-    instrument = trade.get('instrument_type', 'OPTION')
-    underlying = trade.get('underlying', symbol)   # index futures symbol for sweep re-scan
+    lot_size   = trade.get('lot_size') or 1   # default 1 if None/missing (restart recovery)
+    direction    = trade.get('direction', 'BULLISH')
+    instrument   = trade.get('instrument_type', 'OPTION')
+    product_type = trade.get('product_type', PRODUCT_INTRADAY)
+    underlying   = trade.get('underlying', symbol)   # index futures symbol for sweep re-scan
 
     # Vega/IV crush tracking fields (captured at entry in trade_rec)
     entry_iv         = float(trade.get('entry_iv', 0) or 0)
@@ -1095,7 +1096,9 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
     # OPTIONS: always long the premium — standard ltp<=sl / ltp>=target applies.
     is_short_futures = (instrument == 'FUTURES' and direction == 'BEARISH')
     t1_done       = False
-    entry_ts      = datetime.fromisoformat(trade['fvg_entry_time'])
+    entry_ts      = datetime.fromisoformat(
+        trade.get('fvg_entry_time') or trade.get('entry_time', datetime.now().isoformat())
+    )
     journal_id    = trade.get('journal_id')
     exit_reason   = 'UNKNOWN'
     exit_ltp      = entry
@@ -1109,13 +1112,28 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
 
         mins_in_fvg = (datetime.now() - entry_ts).total_seconds() / 60
 
-        # Theta watchdog (20-minute rule — options only)
-        if trade.get('in_fvg') and mins_in_fvg > THETA_EXIT_MINS:
+        # Theta watchdog (20-minute rule — options only; futures hold until target/SL/EOD)
+        if instrument == 'OPTION' and trade.get('in_fvg') and mins_in_fvg > THETA_EXIT_MINS:
             logger.info(f"Theta burn: {symbol} in FVG {mins_in_fvg:.0f}min — exiting")
-            _exit_position(fyers, symbol, qty_left, lot_size, "THETA_BURN", direction, instrument)
+            _exit_position(fyers, symbol, qty_left, lot_size, "THETA_BURN", direction, instrument, product_type)
             exit_reason = 'THETA_BURN'
             exit_ltp    = _get_ltp(fyers, symbol) or entry
             break
+
+        # EOD force-exit at 15:10 IST (futures only — options handled by OptionsOrderManager)
+        if instrument == 'FUTURES':
+            try:
+                import pytz as _pytz_om
+                from datetime import datetime as _dt_om
+                _ist_now = _dt_om.now(_pytz_om.timezone('Asia/Kolkata'))
+                if (_ist_now.hour, _ist_now.minute) >= (15, 10):
+                    logger.info(f"EOD force-exit (15:10 IST): {symbol} — squaring off {qty_left} qty")
+                    _exit_position(fyers, symbol, qty_left, lot_size, "FORCE_EXIT_EOD", direction, instrument, product_type)
+                    exit_reason = 'FORCE_EXIT_EOD'
+                    exit_ltp    = _get_ltp(fyers, symbol) or entry
+                    break
+            except Exception as _eod_err:
+                logger.warning(f"EOD force-exit check failed: {_eod_err}")
 
         ltp = _get_ltp(fyers, symbol)
         if ltp is None:
@@ -1125,7 +1143,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         sl_hit = (ltp >= sl) if is_short_futures else (ltp <= sl)
         if sl_hit:
             logger.info(f"SL hit: {symbol} ltp={ltp} sl={sl}")
-            _exit_position(fyers, symbol, qty_left, lot_size, "STOP_LOSS", direction, instrument)
+            _exit_position(fyers, symbol, qty_left, lot_size, "STOP_LOSS", direction, instrument, product_type)
             exit_reason = 'STOP_LOSS'
             break
 
@@ -1133,7 +1151,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         if not t1_done and t1_hit:
             half = max(lot_size, (qty_left // 2 // lot_size) * lot_size)
             logger.info(f"T1 hit: {symbol} ltp={ltp} — exiting {half} qty, SL→BE")
-            _exit_position(fyers, symbol, half, lot_size, "TARGET1", direction, instrument)
+            _exit_position(fyers, symbol, half, lot_size, "TARGET1", direction, instrument, product_type)
             qty_left -= half
             sl = entry   # move SL to break-even
             t1_done = True
@@ -1142,7 +1160,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         t2_hit = (ltp <= target2) if is_short_futures else (ltp >= target2)
         if t1_done and t2_hit:
             logger.info(f"T2 hit: {symbol} ltp={ltp} — full exit {qty_left} qty")
-            _exit_position(fyers, symbol, qty_left, lot_size, "TARGET2", direction, instrument)
+            _exit_position(fyers, symbol, qty_left, lot_size, "TARGET2", direction, instrument, product_type)
             exit_reason = 'TARGET2'
             break
 
@@ -1153,8 +1171,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
             )
             if s_action == 'EXIT_FULL':
                 logger.warning(f"Post-entry sweep EXIT_FULL: {symbol} | {s_reason}")
-                _exit_position(fyers, symbol, qty_left, lot_size,
-                               "OPPOSITE_SWEEP", direction, instrument)
+                _exit_position(fyers, symbol, qty_left, lot_size, "OPPOSITE_SWEEP", direction, instrument, product_type)
                 exit_reason = 'OPPOSITE_SWEEP_FULL'
                 exit_ltp    = _get_ltp(fyers, symbol) or ltp
                 try:
@@ -1170,8 +1187,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
                 break
             elif s_action in ('EXIT_PARTIAL', 'TIGHTEN_SL'):
                 if s_action == 'EXIT_PARTIAL' and t1_done and qty_left > 0:
-                    _exit_position(fyers, symbol, qty_left, lot_size,
-                                   "OPPOSITE_SWEEP_RUNNER", direction, instrument)
+                    _exit_position(fyers, symbol, qty_left, lot_size, "OPPOSITE_SWEEP_RUNNER", direction, instrument, product_type)
                     exit_reason = 'OPPOSITE_SWEEP_RUNNER'
                     exit_ltp    = _get_ltp(fyers, symbol) or ltp
                     try:
@@ -1212,8 +1228,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
             )
             if iv_action == 'EXIT_EARLY':
                 logger.warning(f"IV crush EXIT_EARLY: {symbol} | {iv_reason}")
-                _exit_position(fyers, symbol, qty_left, lot_size,
-                               "IV_CRUSH", direction, instrument)
+                _exit_position(fyers, symbol, qty_left, lot_size, "IV_CRUSH", direction, instrument, product_type)
                 exit_reason = 'IV_CRUSH'
                 exit_ltp    = _get_ltp(fyers, symbol) or ltp
                 try:
@@ -1327,18 +1342,24 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
 
 
 def _exit_position(fyers, symbol: str, qty: int, lot_size: int, reason: str,
-                   direction: str = 'BULLISH', instrument: str = 'OPTION'):
+                   direction: str = 'BULLISH', instrument: str = 'OPTION',
+                   product_type: str = None):
     """
     Place market order to close `qty` contracts.
     Long positions (options + bullish futures) → SELL to close.
     Short positions (bearish futures) → BUY to close.
+    product_type: pass the same product used at entry (MIS/NRML).
+                  If None, defaults to MIS for futures, MIS for options (safe intraday default).
     """
     try:
         if qty <= 0:
             return
         is_short_futures = (instrument == 'FUTURES' and direction == 'BEARISH')
         close_side = SIDE_BUY if is_short_futures else SIDE_SELL
-        product = PRODUCT_INTRADAY if instrument == 'FUTURES' else PRODUCT_MARGIN
+        # Always match the entry product type. Default to MIS (intraday) for both
+        # futures and options — never MARGIN (NRML) for an intraday entry, which would
+        # open a new short position rather than closing the existing long.
+        product = product_type if product_type else PRODUCT_INTRADAY
         exit_tag = ''.join(ch for ch in f"CB6EXIT{reason}" if ch.isalnum())[:20] or "CB6EXIT"
         order_data = {
             "symbol"      : symbol,

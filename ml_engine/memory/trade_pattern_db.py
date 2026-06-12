@@ -262,7 +262,11 @@ def backfill_from_state(state_path: str, market: str, account: str):
         with open(state_path, encoding='utf-8-sig') as f:
             state = json.load(f)
         for t in state.get('closed_trades', []):
-            record_trade(t, market=market, account=account)
+            record_trade(
+                t, market=market, account=account,
+                session=t.get('session', ''),
+                h4_bias=t.get('h4_bias', ''),
+            )
         from utils.logger import logger
         logger.info(f"trade_pattern_db: backfilled {len(state.get('closed_trades', []))} trades from {state_path}")
     except Exception as e:

@@ -2,9 +2,10 @@ from forex_engine.gft_10k.config import GFT_10K_PROFILE as _P
 
 
 def daily_drawdown(state: dict) -> float:
-    snapshot = state.get("daily_snapshot", _P["account_size"])
-    capital  = state.get("capital",        _P["account_size"])
-    return round(snapshot - capital, 2)
+    snapshot     = state.get("daily_snapshot", _P["account_size"])
+    capital      = state.get("capital",        _P["account_size"])
+    floating_pnl = state.get("floating_pnl",   0.0)
+    return round(snapshot - (capital + floating_pnl), 2)
 
 
 def max_drawdown(state: dict) -> float:

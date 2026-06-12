@@ -125,7 +125,8 @@ def _adx(df, period: int = 14) -> float:
         ndi  = 100 * ndm.ewm(span=period, adjust=False).mean() / atr
         dx   = 100 * (pdi - ndi).abs() / (pdi + ndi).replace(0, 1)
         return round(dx.ewm(span=period, adjust=False).mean().iloc[-1], 1)
-    except Exception:
+    except Exception as _adx_err:
+        logger.debug(f"ADX compute error (missing col or bad data): {_adx_err}")
         return 0.0
 
 
@@ -1313,48 +1314,168 @@ def _get_nse_h1_bias(fyers, symbol: str) -> str:
         return 'RANGING'
 
 
-_h4_bias_cache: dict = {}   # {symbol: (bias, fetched_epoch)}
-_H4_CACHE_TTL = 1800        # 30 min — H4 bar is 4 hours; no need to re-fetch every 3 min
+_h4_bias_cache: dict = {}
+_h4_bias_cache_lock    = __import__('threading').Lock()
+_H4_CACHE_TTL          = 1800   # 30 min default
+_H4_CACHE_TTL_KILLZONE = 900    # 15 min during NSE kill zones — faster context refresh
+
+# NSE kill zone hour ranges (IST)
+_NSE_KZ_RANGES = [(10, 11), (13, 14), (15, 16)]
+
+
+def _in_nse_killzone() -> bool:
+    now_ist = datetime.now(IST)
+    h, m = now_ist.hour, now_ist.minute
+    for s, e in _NSE_KZ_RANGES:
+        if s <= h < e:
+            if h == 15 and m > 30:
+                return False
+            return True
+    return False
 
 
 def _get_nse_h4_bias(fyers, symbol: str) -> str:
     """
-    H4 (240-min) trend bias for NSE via EMA(3) vs EMA(8).
+    H4 bias — two-layer detection (mirrors forex structure_scanner.py):
+      Layer 1: EMA(3) vs EMA(8) on H4 → primary trend direction
+      Layer 2: H4 CHoCH — if EMA BEARISH + fresh BULLISH CHoCH → RANGING
+               (structure reversed, EMA lagging — same as the May 22 root-cause fix)
 
-    Hard gate — no CHoCH override. H4 is the primary trend frame:
-      BULLISH H4 → only take BULLISH setups
-      BEARISH H4 → only take BEARISH setups
-      RANGING    → allow both, but raise score gate by +1 (handled in scoring)
-
-    Results are cached 30 min to avoid excessive Fyers API calls (scanner fires every 3 min).
+    Cache TTL: 15 min during NSE kill zones, 30 min otherwise — faster refresh
+    when smart money is most active and H4 structure can shift in one candle.
     Fallback: RANGING when data unavailable.
     """
     import time
     now = time.time()
-    cached = _h4_bias_cache.get(symbol)
-    if cached and (now - cached[1]) < _H4_CACHE_TTL:
+    ttl = _H4_CACHE_TTL_KILLZONE if _in_nse_killzone() else _H4_CACHE_TTL
+    with _h4_bias_cache_lock:
+        cached = _h4_bias_cache.get(symbol)
+    if cached and (now - cached[1]) < ttl:
         return cached[0]
 
     try:
         from scanner.data_fetcher import get_historical_data
         df_h4 = get_historical_data(fyers, symbol, '240', days=20)
         if df_h4 is None or len(df_h4) < 8:
-            _h4_bias_cache[symbol] = ('RANGING', now)
+            with _h4_bias_cache_lock:
+                _h4_bias_cache[symbol] = ('RANGING', now)
             return 'RANGING'
+
+        # Layer 1: EMA(3) vs EMA(8)
         c    = df_h4['close'].astype(float)
         fast = float(c.ewm(span=3, adjust=False).mean().iloc[-1])
         slow = float(c.ewm(span=8, adjust=False).mean().iloc[-1])
         if fast > slow * 1.0003:
-            bias = 'BULLISH'
+            ema_bias = 'BULLISH'
         elif fast < slow * 0.9997:
-            bias = 'BEARISH'
+            ema_bias = 'BEARISH'
         else:
-            bias = 'RANGING'
-        _h4_bias_cache[symbol] = (bias, now)
-        return bias
+            ema_bias = 'RANGING'
+
+        if ema_bias == 'RANGING':
+            with _h4_bias_cache_lock:
+                _h4_bias_cache[symbol] = ('RANGING', now)
+            return 'RANGING'
+
+        # Layer 2: structural CHoCH check — catches reversals before EMA flips.
+        # If EMA BEARISH but fresh BULLISH H4 CHoCH (within 3 H4 bars ≈ 12h) → RANGING.
+        # Prevents the May 22 scenario in reverse: blocking valid reversals with stale EMA.
+        try:
+            mss_h4 = detect_sb_mss(df_h4, lookback=30)
+            if (mss_h4 is not None
+                    and mss_h4.get('type') == 'CHOCH'
+                    and mss_h4.get('direction') != ema_bias
+                    and int(mss_h4.get('candles_ago', 999)) <= 3):
+                logger.info(
+                    f"NSE H4 {symbol}: counter-EMA CHoCH "
+                    f"({mss_h4['direction']} {mss_h4['candles_ago']}ca, EMA={ema_bias}) → RANGING"
+                )
+                with _h4_bias_cache_lock:
+                    _h4_bias_cache[symbol] = ('RANGING', now)
+                return 'RANGING'
+        except Exception:
+            pass
+
+        with _h4_bias_cache_lock:
+            _h4_bias_cache[symbol] = (ema_bias, now)
+        return ema_bias
     except Exception:
-        _h4_bias_cache[symbol] = ('RANGING', now)
+        with _h4_bias_cache_lock:
+            _h4_bias_cache[symbol] = ('RANGING', now)
         return 'RANGING'
+
+
+# ── NSE Multi-Timeframe bias (30m + 15m) ─────────────────────────────────────
+
+_nse_mtf_cache: dict = {}
+_nse_mtf_cache_lock    = __import__('threading').Lock()
+_NSE_MTF_TTL = 600          # 10 min — 15m bar closes every 15 min
+
+
+def _get_nse_mtf_bias(fyers, symbol: str, direction: str) -> dict:
+    """
+    NSE MTF cascade: 30m → 15m bias via EMA(3) vs EMA(8).
+
+    Equivalent to forex 45m→30m→15m cascade but adapted for NSE speed.
+    Fyers API supports both intervals natively.
+
+    Score contribution to Silver Bullet score:
+      +2: both 30m + 15m aligned with direction
+      +1: one aligned, one RANGING
+       0: both RANGING (no add/subtract)
+      -1: one counter-direction
+      -2: both counter-direction (strong signal to skip or reduce size)
+
+    Returns dict: {score, tf30_bias, tf15_bias, confirmed}
+    """
+    _empty = {'score': 0, 'tf30_bias': 'RANGING', 'tf15_bias': 'RANGING', 'confirmed': False}
+    if fyers is None:
+        return _empty
+
+    import time
+    now = time.time()
+    with _nse_mtf_cache_lock:
+        cached = _nse_mtf_cache.get(symbol)
+    if cached and (now - cached[1]) < _NSE_MTF_TTL:
+        r = cached[0].copy()
+        r['confirmed'] = r.get('score', 0) > 0
+        return r
+
+    try:
+        from scanner.data_fetcher import get_historical_data
+
+        def _ema_bias(df_tf):
+            if df_tf is None or len(df_tf) < 8:
+                return 'RANGING'
+            c    = df_tf['close'].astype(float)
+            fast = float(c.ewm(span=3, adjust=False).mean().iloc[-1])
+            slow = float(c.ewm(span=8, adjust=False).mean().iloc[-1])
+            if fast > slow * 1.0002:
+                return 'BULLISH'
+            if fast < slow * 0.9998:
+                return 'BEARISH'
+            return 'RANGING'
+
+        df_30 = get_historical_data(fyers, symbol, '30', days=5)
+        df_15 = get_historical_data(fyers, symbol, '15', days=5)
+        b30   = _ema_bias(df_30)
+        b15   = _ema_bias(df_15)
+
+        score = 0
+        for b in (b30, b15):
+            if b == direction:
+                score += 1
+            elif b != 'RANGING':
+                score -= 1
+
+        result = {'score': score, 'tf30_bias': b30, 'tf15_bias': b15}
+        with _nse_mtf_cache_lock:
+            _nse_mtf_cache[symbol] = (result, now)
+        result['confirmed'] = score > 0
+        return result
+    except Exception as e:
+        logger.debug(f"NSE MTF bias ({symbol}): {e}")
+        return _empty
 
 
 # ── full Silver Bullet scan ───────────────────────────────────────────────────
@@ -1554,11 +1675,28 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
         pd_context = premium_discount_context(df, fvg_mid)
         pd_context['aligned'] = premium_discount_aligned(direction, pd_context)
         if not pd_context['aligned']:
-            logger.info(
-                f"SB skip {symbol}: {direction} FVG in {pd_context.get('zone')} "
-                f"(eq={pd_context.get('equilibrium', 0):.2f})"
+            # Sweep relaxation: a fresh confirmed sweep (≤3 candles ago) overrides the P/D gate.
+            # ICT: when smart money just grabbed liquidity, they are committed to the reversal.
+            # Price starting from the "wrong" zone is expected — that is the Judas trap.
+            # Without this, the bot skips the exact setup it was designed to trade.
+            _fresh_sweep_pd = (
+                liq_sweep is not None
+                and liq_sweep.get('direction') == direction
+                and int(liq_sweep.get('candles_ago', 99)) <= 3
             )
-            return None
+            if _fresh_sweep_pd:
+                logger.info(
+                    f"SB {symbol}: P/D gate relaxed — fresh sweep "
+                    f"{liq_sweep.get('candles_ago')}ca confirms {direction} "
+                    f"despite {pd_context.get('zone')} zone"
+                )
+                pd_context['aligned'] = True
+            else:
+                logger.info(
+                    f"SB skip {symbol}: {direction} FVG in {pd_context.get('zone')} "
+                    f"(eq={pd_context.get('equilibrium', 0):.2f})"
+                )
+                return None
 
         # OI entry confirmation + bid/ask spread check.
         # Both are gracefully optional: no data → pass through unchanged.
@@ -2023,6 +2161,16 @@ def scan_silver_bullet(df, symbol: str, tf: str = '5',
         elif h4_ranging:
             score -= 1   # RANGING H4 → trend unclear, require stronger setup
 
+        # NSE MTF cascade: 30m + 15m bias — fills the gap between H1 and 5m.
+        # Equivalent to forex 45m→30m→15m. Max ±2 points.
+        _mtf_nse = _get_nse_mtf_bias(fyers, symbol, direction)
+        if _mtf_nse['score'] != 0:
+            score += _mtf_nse['score']
+        logger.info(
+            f"SB {symbol}: MTF 30m={_mtf_nse['tf30_bias']} "
+            f"15m={_mtf_nse['tf15_bias']} Δscore={_mtf_nse['score']:+d}"
+        )
+
         # Compression mode score cap: coiling setups have lower max confidence
         if regime == 'CHOPPY' and compression.get('is_compressed'):
             score = min(score, 11.0)
@@ -2407,6 +2555,24 @@ def scan_silver_bullet_mtf(
 
         if result:
             result['symbol'] = symbol   # restore actual symbol
+            # Adapt MTF cascade output to NSE engine format:
+            #   1. confluence is a dict in the forex engine; NSE expects an int
+            #   2. entry/stop_loss/fvg live under entry_signal; NSE reads them top-level
+            conf = result.get('confluence', 0)
+            if isinstance(conf, dict):
+                result['score_detail'] = conf          # keep breakdown for trace logs
+                result['confluence']   = conf.get('score', 0)
+            es = result.get('entry_signal', {})
+            if es:
+                if 'entry' not in result:
+                    result['entry']     = es.get('entry', 0)
+                if 'stop_loss' not in result:
+                    result['stop_loss'] = es.get('stop_loss', 0)
+                if 'fvg' not in result:
+                    result['fvg'] = {
+                        'fvg_low' : es.get('fvg_low',  0),
+                        'fvg_high': es.get('fvg_high', 0),
+                    }
         return result
     except Exception as exc:
         from utils.logger import logger

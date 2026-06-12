@@ -59,6 +59,11 @@ NO_ENTRY_BEFORE = "09:30"
 # SAFE_VALIDATION_REVALIDATE_AUTO -> ARMED one-cycle hold, auto revalidate, then auto execute
 EXECUTION_MODE = os.getenv("EXECUTION_MODE", "LEGACY").strip().upper()
 
+# NSE instrument router — futures XOR options per signal (never both — double risk).
+# False = options-only (current live mode, futures paused May 2026).
+# Set NSE_FUTURES_ENABLED=true in .env to re-enable futures routing.
+NSE_FUTURES_ENABLED = os.getenv("NSE_FUTURES_ENABLED", "false").strip().lower() == "true"
+
 # ML Gate — NSE live trading
 # When True: ML filters ICT setups before placing trades.
 # AVOID confidence (win_prob ≤ 0.35) blocks the trade. Fails open if ML errors.
