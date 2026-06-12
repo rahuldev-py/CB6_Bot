@@ -730,6 +730,15 @@ def place_silver_bullet_trade(fyers, setup: Dict, strike_info: Dict,
             return None
 
         trade_rec['order_id'] = order_id
+
+        # Place broker-side SL-M (GTT crash protection) immediately after fill.
+        # Fires at Fyers even if Python crashes before _sl_monitor_loop can exit.
+        _gtt_id = _place_gtt_sl(
+            fyers, symbol, qty, trade_rec['current_sl'],
+            product_type, instrument='OPTION',
+        )
+        trade_rec['gtt_sl_order_id'] = _gtt_id or ''
+
         paper_trade = None
         if _PAPER_OK:
             paper_trade = open_paper_trade(sb_setup)
@@ -827,6 +836,65 @@ def place_silver_bullet_trade(fyers, setup: Dict, strike_info: Dict,
     except Exception as e:
         logger.error(f"place_silver_bullet_trade error: {e}")
         return None
+
+
+# ── Broker-side GTT Stop-Loss helpers ────────────────────────────────────────
+
+def _place_gtt_sl(fyers, symbol: str, qty: int, sl_price: float,
+                  product_type: str, direction: str = 'BULLISH',
+                  instrument: str = 'OPTION') -> Optional[str]:
+    """
+    Place a Stop-Loss Market (SL-M) order at Fyers after a fill.
+    Acts as broker-side crash protection — fires even if Python is dead.
+    Returns the Fyers order_id string or None on failure.
+    Fail-open: a GTT placement failure does NOT block the trade.
+    """
+    try:
+        is_short_futures = (instrument == 'FUTURES' and direction == 'BEARISH')
+        close_side = SIDE_BUY if is_short_futures else SIDE_SELL
+        data = {
+            "symbol"      : symbol,
+            "qty"         : qty,
+            "type"        : 4,   # SL-M (Stop Loss Market)
+            "side"        : close_side,
+            "productType" : product_type,
+            "limitPrice"  : 0,
+            "stopPrice"   : round(sl_price, 2),
+            "validity"    : "DAY",
+            "disclosedQty": 0,
+            "offlineOrder": False,
+            "orderTag"    : "CB6GTTSL",
+        }
+        resp = fyers.place_order(data)
+        if resp and resp.get('code') == 200:
+            gtt_id = str(resp.get('id') or resp.get('data', {}).get('id', ''))
+            if gtt_id:
+                logger.info(f"GTT SL placed: {symbol} sl={sl_price} qty={qty} id={gtt_id}")
+                return gtt_id
+        logger.warning(f"GTT SL placement failed: {symbol} sl={sl_price} resp={resp}")
+        return None
+    except Exception as e:
+        logger.warning(f"GTT SL placement error {symbol}: {e}")
+        return None
+
+
+def _cancel_gtt_sl(fyers, gtt_order_id: str, symbol: str = '') -> bool:
+    """
+    Cancel a pending GTT SL order. Best-effort — never raises.
+    Returns True if cancel succeeded or order was already empty.
+    """
+    if not gtt_order_id:
+        return True
+    try:
+        resp = fyers.cancel_order({"id": gtt_order_id})
+        if resp and resp.get('code') == 200:
+            logger.info(f"GTT SL cancelled: {gtt_order_id} ({symbol})")
+            return True
+        logger.warning(f"GTT SL cancel response: {gtt_order_id} resp={resp}")
+        return False
+    except Exception as e:
+        logger.warning(f"GTT SL cancel error {gtt_order_id} ({symbol}): {e}")
+        return False
 
 
 # ── Fill status tracker ───────────────────────────────────────────────────────
@@ -1099,7 +1167,8 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
     entry_ts      = datetime.fromisoformat(
         trade.get('fvg_entry_time') or trade.get('entry_time', datetime.now().isoformat())
     )
-    journal_id    = trade.get('journal_id')
+    journal_id      = trade.get('journal_id')
+    gtt_sl_order_id = trade.get('gtt_sl_order_id', '')  # broker-side crash SL
     exit_reason   = 'UNKNOWN'
     exit_ltp      = entry
     _poll_counter = 0    # drives sweep + IV check intervals
@@ -1115,6 +1184,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         # Theta watchdog (20-minute rule — options only; futures hold until target/SL/EOD)
         if instrument == 'OPTION' and trade.get('in_fvg') and mins_in_fvg > THETA_EXIT_MINS:
             logger.info(f"Theta burn: {symbol} in FVG {mins_in_fvg:.0f}min — exiting")
+            _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
             _exit_position(fyers, symbol, qty_left, lot_size, "THETA_BURN", direction, instrument, product_type)
             exit_reason = 'THETA_BURN'
             exit_ltp    = _get_ltp(fyers, symbol) or entry
@@ -1128,6 +1198,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
                 _ist_now = _dt_om.now(_pytz_om.timezone('Asia/Kolkata'))
                 if (_ist_now.hour, _ist_now.minute) >= (15, 10):
                     logger.info(f"EOD force-exit (15:10 IST): {symbol} — squaring off {qty_left} qty")
+                    _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
                     _exit_position(fyers, symbol, qty_left, lot_size, "FORCE_EXIT_EOD", direction, instrument, product_type)
                     exit_reason = 'FORCE_EXIT_EOD'
                     exit_ltp    = _get_ltp(fyers, symbol) or entry
@@ -1143,6 +1214,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         sl_hit = (ltp >= sl) if is_short_futures else (ltp <= sl)
         if sl_hit:
             logger.info(f"SL hit: {symbol} ltp={ltp} sl={sl}")
+            _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
             _exit_position(fyers, symbol, qty_left, lot_size, "STOP_LOSS", direction, instrument, product_type)
             exit_reason = 'STOP_LOSS'
             break
@@ -1151,6 +1223,8 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         if not t1_done and t1_hit:
             half = max(lot_size, (qty_left // 2 // lot_size) * lot_size)
             logger.info(f"T1 hit: {symbol} ltp={ltp} — exiting {half} qty, SL→BE")
+            # Cancel GTT SL now — bot is actively managing, GTT for full qty is no longer valid
+            _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
             _exit_position(fyers, symbol, half, lot_size, "TARGET1", direction, instrument, product_type)
             qty_left -= half
             sl = entry   # move SL to break-even
@@ -1160,6 +1234,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         t2_hit = (ltp <= target2) if is_short_futures else (ltp >= target2)
         if t1_done and t2_hit:
             logger.info(f"T2 hit: {symbol} ltp={ltp} — full exit {qty_left} qty")
+            _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
             _exit_position(fyers, symbol, qty_left, lot_size, "TARGET2", direction, instrument, product_type)
             exit_reason = 'TARGET2'
             break
@@ -1171,6 +1246,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
             )
             if s_action == 'EXIT_FULL':
                 logger.warning(f"Post-entry sweep EXIT_FULL: {symbol} | {s_reason}")
+                _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
                 _exit_position(fyers, symbol, qty_left, lot_size, "OPPOSITE_SWEEP", direction, instrument, product_type)
                 exit_reason = 'OPPOSITE_SWEEP_FULL'
                 exit_ltp    = _get_ltp(fyers, symbol) or ltp
@@ -1187,6 +1263,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
                 break
             elif s_action in ('EXIT_PARTIAL', 'TIGHTEN_SL'):
                 if s_action == 'EXIT_PARTIAL' and t1_done and qty_left > 0:
+                    _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
                     _exit_position(fyers, symbol, qty_left, lot_size, "OPPOSITE_SWEEP_RUNNER", direction, instrument, product_type)
                     exit_reason = 'OPPOSITE_SWEEP_RUNNER'
                     exit_ltp    = _get_ltp(fyers, symbol) or ltp
@@ -1228,6 +1305,7 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
             )
             if iv_action == 'EXIT_EARLY':
                 logger.warning(f"IV crush EXIT_EARLY: {symbol} | {iv_reason}")
+                _cancel_gtt_sl(fyers, gtt_sl_order_id, symbol); gtt_sl_order_id = ''
                 _exit_position(fyers, symbol, qty_left, lot_size, "IV_CRUSH", direction, instrument, product_type)
                 exit_reason = 'IV_CRUSH'
                 exit_ltp    = _get_ltp(fyers, symbol) or ltp
@@ -1620,6 +1698,14 @@ def place_futures_trade(fyers, setup: Dict, paper_mode: bool = True) -> Optional
             return None
 
         trade_rec['order_id'] = order_id
+
+        # Broker-side SL-M crash protection for futures position.
+        _gtt_id_fut = _place_gtt_sl(
+            fyers, symbol, qty, stop_loss,
+            PRODUCT_INTRADAY, direction=direction, instrument='FUTURES',
+        )
+        trade_rec['gtt_sl_order_id'] = _gtt_id_fut or ''
+
         paper_trade = None
         if _PAPER_OK:
             paper_trade = open_paper_trade(sb_setup)
