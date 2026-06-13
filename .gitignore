@@ -24,7 +24,8 @@ ml_engine/memory/*.db
 
 # Reports & agent output (generated, not source)
 agent_reports/
-reports/
+reports/*
+!reports/daily_report.py
 
 # VS Code local settings
 .vscode/settings.json

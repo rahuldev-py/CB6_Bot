@@ -129,3 +129,85 @@
 **H4 VIOLATIONS DETECTED IN STATE FILES**
 **Deploy approved:** False
 **Notes:** Audit reveals multiple H4 violations across accounts, indicating potential strategy or execution issues. Symbol rules, risk limits, execution safety, and ML safety appear to be in compliance, but signal integrity is compromised due to H4 bias check bypass or ignorance.
+
+## 20260610_084512 — ❌ FAIL | Risk: 8/10
+**Context:** Self-test — full CB6 audit
+**Checklist:** symbol_rules: PASS | risk_limits: PASS | execution_safety: PASS | signal_integrity: FAIL | ml_safety: PASS
+**Violations (1):**
+  - 🔴 H4 bias check bypassed or ignored in multiple instances across FTMO and GFT_5K accounts
+**Warnings:**
+  - ⚠️ No code diff provided for audit, relying on general system knowledge
+  - ⚠️ GFT_5K: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ FTMO: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ GFT_5K: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 14:00
+  - ⚠️ FTMO: H4 violation — XAGUSD BULLISH with H4=BEARISH on 2026-05-26 16:45
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-06-05 00:45
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 12:45
+  - ⚠️ Multiple H4 violations detected in state files, indicating potential strategy or execution issues
+  - ⚠️ FTMO: H4 violation — XAUUSD BULLISH with H4=BEARISH on 2026-06-03 17:00
+**H4 VIOLATIONS DETECTED IN STATE FILES**
+**Deploy approved:** False
+**Notes:** Audit failed due to repeated H4 violations across multiple accounts, indicating a need for strategy review and potential adjustments to execution logic.
+
+## 20260611_082153 — ❌ FAIL | Risk: 8/10
+**Context:** Self-test — full CB6 audit
+**Checklist:** symbol_rules: PASS | risk_limits: PASS | execution_safety: PASS | signal_integrity: FAIL | ml_safety: PASS
+**Violations (1):**
+  - 🔴 H4 bias check bypassed or ignored in multiple instances across FTMO and GFT_5K accounts
+**Warnings:**
+  - ⚠️ No code diff provided for audit, relying on general system knowledge
+  - ⚠️ FTMO: H4 violation — XAUUSD BULLISH with H4=BEARISH on 2026-06-03 17:00
+  - ⚠️ GFT_5K: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 14:00
+  - ⚠️ FTMO: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ Multiple H4 violations detected in state files, indicating potential strategy or execution issues
+  - ⚠️ GFT_5K: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 12:45
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-06-05 00:45
+  - ⚠️ FTMO: H4 violation — XAGUSD BULLISH with H4=BEARISH on 2026-05-26 16:45
+**H4 VIOLATIONS DETECTED IN STATE FILES**
+**Deploy approved:** False
+**Notes:** Audit reveals multiple H4 violations across accounts, indicating potential issues with strategy or execution. Symbol rules, risk limits, execution safety, and ML safety appear to be in order, but signal integrity is compromised due to H4 bias check issues.
+
+## 20260612_091104 — ❌ FAIL | Risk: 8/10
+**Context:** Self-test — full CB6 audit
+**Checklist:** symbol_rules: FAIL | risk_limits: PASS | execution_safety: PASS | signal_integrity: FAIL | ml_safety: PASS
+**Violations (2):**
+  - 🔴 XAUUSD traded on FTMO despite permanent ban
+  - 🔴 H4 bias check bypassed or ignored in multiple instances
+**Warnings:**
+  - ⚠️ FTMO: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ GFT_5K: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ No new symbols added but review recommended for optimal performance
+  - ⚠️ GFT_5K: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 14:00
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 12:45
+  - ⚠️ FTMO: H4 violation — XAGUSD BULLISH with H4=BEARISH on 2026-05-26 16:45
+  - ⚠️ GBPUSD still enabled despite low 33% WR
+  - ⚠️ FTMO: H4 violation — XAUUSD BULLISH with H4=BEARISH on 2026-06-03 17:00
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-06-05 00:45
+**H4 VIOLATIONS DETECTED IN STATE FILES**
+**Deploy approved:** False
+**Notes:** Multiple H4 violations detected across FTMO and GFT_5K accounts. XAUUSD traded on FTMO despite being permanently banned. Immediate attention required to rectify these issues and prevent further risk exposure.
+
+## 20260613_153755 — ❌ FAIL | Risk: 8/10
+**Context:** Self-test — full CB6 audit
+**Checklist:** symbol_rules: PASS | risk_limits: PASS | execution_safety: FAIL | signal_integrity: FAIL | ml_safety: PASS
+**Violations (2):**
+  - 🔴 H4 violation detected in FTMO and GFT_5K accounts
+  - 🔴 Multiple H4 violations detected across different dates and symbols
+**Warnings:**
+  - ⚠️ FTMO account has multiple H4 violations
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-06-05 00:45
+  - ⚠️ FTMO: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ GFT_5K: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-12 13:27
+  - ⚠️ FTMO: H4 violation — XAUUSD BULLISH with H4=BEARISH on 2026-06-03 17:00
+  - ⚠️ GFT_5K: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-12 13:30
+  - ⚠️ GFT_5K: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 14:00
+  - ⚠️ FTMO: H4 violation — XAGUSD BULLISH with H4=BEARISH on 2026-05-26 16:45
+  - ⚠️ FTMO: H4 violation — USOIL BULLISH with H4=BEARISH on 2026-05-25 12:45
+  - ⚠️ XAGUSD and XAUUSD symbols have repeated H4 violations
+  - ⚠️ GFT_5K account has multiple H4 violations
+  - ⚠️ GFT_5K: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-01 13:15
+  - ⚠️ GFT_5K: H4 violation — XAGUSD BEARISH with H4=BULLISH on 2026-06-12 12:51
+**H4 VIOLATIONS DETECTED IN STATE FILES**
+**Deploy approved:** False
+**Notes:** Multiple H4 violations detected across FTMO and GFT_5K accounts. Execution safety and signal integrity checks failed due to these violations.

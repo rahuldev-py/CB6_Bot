@@ -260,7 +260,8 @@ class TestFyersFallback:
 
         with patch("data.data_health.get_monitor", return_value=monitor), \
              patch("data.truedata_feed.get_manager", return_value=mock_td), \
-             patch("data.data_health._is_market_hours", return_value=False):
+             patch("data.data_health._is_market_hours", return_value=False), \
+             patch.dict("os.environ", {"TRUEDATA_LIVE_ENABLED": "true"}):
             from scanner import data_fetcher
             data_fetcher.clear_cache()
             result = data_fetcher._get_historical_data_truedata(
@@ -291,6 +292,7 @@ class TestBothStale:
              patch("data.data_health._is_market_hours", return_value=False):
             from scanner import data_fetcher
             data_fetcher.clear_cache()
+            data_fetcher._CONSECUTIVE_FAILS.clear()
             result = data_fetcher.get_historical_data(
                 mock_fyers, "NSE:NIFTY26JUNFUT", "3", days=3
             )
@@ -298,7 +300,7 @@ class TestBothStale:
         assert result is None, "Both providers failing must return None"
 
     def test_both_stale_triggers_telegram_during_market_hours(self):
-        """When both providers return None during market hours, Telegram alert fires."""
+        """When both providers return None during market hours, Telegram alert fires after threshold."""
         import data.data_health as dh
         dh.DataHealthMonitor._instance = None
         monitor = dh.DataHealthMonitor()
@@ -313,9 +315,11 @@ class TestBothStale:
              patch.object(monitor, "send_both_stale_alert") as mock_alert:
             from scanner import data_fetcher
             data_fetcher.clear_cache()
-            data_fetcher.get_historical_data(
-                mock_fyers, "NSE:NIFTY26JUNFUT", "3", days=3
-            )
+            data_fetcher._CONSECUTIVE_FAILS.clear()
+            for _ in range(data_fetcher._STALE_ALERT_THRESHOLD):
+                data_fetcher.get_historical_data(
+                    mock_fyers, "NSE:NIFTY26JUNFUT", "3", days=3
+                )
 
         mock_alert.assert_called()
 

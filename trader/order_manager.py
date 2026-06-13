@@ -1416,6 +1416,24 @@ def _sl_monitor_loop(fyers, order_id: str, trade: Dict):
         )
     except Exception:
         pass
+
+    # ── Persist to cb6_trades.db + pattern DB ────────────────────────────────
+    try:
+        from data.persistence.trade_persistence import write_nse_trade
+        write_nse_trade(
+            trade,
+            setup=trade.get('_setup_ctx'),
+            exit_context={
+                'exit_reason' : exit_reason,
+                'exit_price'  : exit_ltp,
+                'pnl'         : realized,
+                'r_multiple'  : r_multiple,
+                'hold_mins'   : int(hold_mins),
+            },
+        )
+    except Exception:
+        pass
+
     logger.info(f"SL monitor done: {symbol} | reason={exit_reason} | pnl=Rs {realized:+.0f}")
 
 

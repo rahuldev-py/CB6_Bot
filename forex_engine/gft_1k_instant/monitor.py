@@ -612,6 +612,21 @@ class GFT1KInstantWorker:
                                 except Exception:
                                     pass
 
+                                # ── Persist to cb6_trades.db + pattern DB ────
+                                try:
+                                    from data.persistence.trade_persistence import write_gft_trade
+                                    write_gft_trade(
+                                        account_id   = 'GFT_1K_INSTANT',
+                                        trade        = trade,
+                                        exit_context = {
+                                            'hit'      : hit,
+                                            'close_px' : close_px,
+                                            'pnl'      : pnl,
+                                        },
+                                    )
+                                except Exception:
+                                    pass
+
                             closed_ids           = {t["id"] for t in closed_now}
                             state["open_trades"] = [t for t in open_trades if t["id"] not in closed_ids]
                             save_state(state)

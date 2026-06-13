@@ -1,11 +1,11 @@
 ============================================================
 CB6 SOVEREIGN — TASK COMPLETION REPORT
-Generated: 2026-06-08 23:33:40
+Generated: 2026-06-12 23:56:50
 ============================================================
 
 1. EXECUTIVE SUMMARY
 ----------------------------------------
-Full SOVEREIGN pipeline completed in 84s. All 7 agents ran. CIPHER analyzed 4 accounts. NEXUS board report sent to Telegram.
+Full SOVEREIGN pipeline completed in 113s. All 7 agents ran. CIPHER analyzed 4 accounts. NEXUS board report sent to Telegram.
 
 2. OBJECTIVE COMPLETED
 ----------------------------------------
@@ -37,7 +37,7 @@ No live trades modified. Agents produce recommendations only.
 
 7. RISK IMPACT
 ----------------------------------------
-H4 violations found: 7. SENTINEL audit logged.
+H4 violations found: 10. SENTINEL audit logged.
 
 8. PROP FIRM RULE IMPACT
 ----------------------------------------
@@ -45,17 +45,16 @@ No prop firm rules modified. All limits intact.
 
 9. TESTS / VALIDATION PERFORMED
 ----------------------------------------
-  Syntax check: 169 files OK | 0 errors
-  Test suite:   360 passed | 0 failed
-  Summary:      360 passed, 12 warnings in 63.39s (0:01:03)
-  • Syntax: 169 files clean
-  • Tests: 360 passed, 0 failed
+  Syntax check: 191 files OK | 0 errors
+  Test suite:   502 passed | 4 failed
+  Summary:      4 failed, 502 passed, 12 warnings in 54.92s
+  • Syntax: 191 files clean
+  • Tests: 502 passed, 4 failed
 
 10. REMAINING ISSUES
 ----------------------------------------
-  ⚠ NSE Fyers exit tracking broken
-  ⚠ GFT $5K 2-Step H4 violations found
-  ⚠ FTMO $10K deadline approaching
+  ⚠ GFT $5K 2-Step phase target not reached
+  ⚠ NSE Fyers exit tracking issue
 
 11. NEXT RECOMMENDED TASK
 ----------------------------------------

@@ -1,16 +1,16 @@
-# SHADOW ML Report — 2026-06-08 23:30
+# SHADOW ML Report — 2026-06-12 23:53
 
 ## Retrain Decision: YES ⚡
 **Deployment Status:** SHADOW TEST NEW MODEL
 **Overfitting Risk:** MEDIUM
-**Reason:** RNN NSE has high val_loss (0.822), CNN NSE and DNN NSE are near threshold for test_acc and val_loss
+**Reason:** All models have low accuracy and high val_loss, with none meeting target metrics
 
 ## Model Health
 | Model | Grade | Acc | Prec | Val Loss | Age | Status |
 |-------|-------|-----|------|----------|-----|--------|
-| cnn_nse | B | 0.7584 | 0.9048 | 0.555972 | 12d | 🟢 |
-| dnn_nse | B | 0.7383 | 0.9184 | 0.57245 | 12d | 🟢 |
-| rnn_nse | A | 0.8 | ? | 0.821857 | 12d | 🟡 |
+| dnn_trade_scorer_nse | D | 0.5298 | 0.6872 | 0.3073 | 1d | 🔴 |
+| dnn_trade_scorer_forex | D | 0.537 | 0.6988 | 0.2678 | 1d | 🔴 |
+| rnn_sequence_nse | D | 0.537 | 0.6988 | 0.2539 | 1d | 🔴 |
 
 ## Feature Improvements
 - session_type
@@ -19,8 +19,10 @@
 - H4_bias_aligned
 
 ## Specific Improvements
-- London session feature
-- BEARISH bias feature
+- Add session_type feature
+- Add direction_bias feature
+- Add symbol_group feature
+- Add H4_bias_aligned binary feature
 
 ## Deployment Protocol
 ```

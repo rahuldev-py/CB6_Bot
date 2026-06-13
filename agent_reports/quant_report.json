@@ -1,5 +1,5 @@
 {
-  "summary": "NSE Fyers: \u20b926,000, 38 open trades, exit tracking broken. GFT $1K Instant: $982.53, 0 trades. GFT $5K 2-Step: $4,851.32, -$148.68 PnL, 2 H4 violations. FTMO $10K: $9,804.91, -$195.09 PnL, deadline June 6.",
+  "summary": "GFT $5K 2-Step: -$305.9, needs +$433 more; GFT $1K Instant: $0 PnL; NSE Fyers: \u20b926,000, exit tracking broken; FTMO $10K: -$195.09, needs +$608 more",
   "win_rate_overall": 0.6784,
   "win_rate_by_symbol": {
     "EURUSD": 0.4667,
@@ -46,47 +46,44 @@
       "capital": 982.53,
       "daily_pnl": 0,
       "trades_today": 0,
-      "status": "no trades",
+      "status": "no trades yet",
       "actions": [
-        "enable trading",
-        "monitor performance"
+        "enable XAUUSD",
+        "monitor for trading opportunities"
       ]
     },
     "gft_5k_2step": {
-      "capital": 4851.32,
-      "pnl": -148.68,
+      "capital": 4694.1,
+      "pnl": -305.9,
       "phase": "phase_1",
       "phase_target": 400,
-      "progress_pct": -37.17,
-      "status": "2 H4 violations",
+      "progress_pct": 0,
+      "status": "needs +$433 more",
       "actions": [
         "review H4 violations",
-        "adjust trading strategy"
+        "adjust risk management"
       ],
-      "h4_violations": 2
+      "h4_violations": 5
     },
     "ftmo_10k": {
       "capital": 9804.91,
       "pnl": -195.09,
       "target": 500,
       "deadline": "June 6",
-      "status": "urgent",
+      "status": "needs +$608 more",
       "actions": [
-        "increase trading activity",
-        "focus on high-win-rate symbols"
+        "review H4 violations",
+        "increase trading activity"
       ]
     }
   },
-  "symbols_to_disable": [
-    "GBPUSD"
-  ],
+  "symbols_to_disable": [],
   "symbols_to_prioritize": [
     "XAGUSD",
     "XAUUSD"
   ],
   "session_recommendations": [
-    "London",
-    "NY"
+    "focus on London session"
   ],
   "h4_violations_found": [
     "USOIL BULLISH entry with H4=BEARISH on 2026-05-25 12:45:12",
@@ -95,41 +92,53 @@
     "XAUUSD BULLISH entry with H4=BEARISH on 2026-06-03 17:00:02",
     "USOIL BULLISH entry with H4=BEARISH on 2026-06-05 00:45:15",
     "USOIL BULLISH entry with H4=BEARISH on 2026-05-25 14:00:14",
-    "XAGUSD BEARISH entry with H4=BULLISH on 2026-06-01 13:15:10"
+    "XAGUSD BEARISH entry with H4=BULLISH on 2026-06-01 13:15:10",
+    "XAGUSD BEARISH entry with H4=BULLISH on 2026-06-12 12:51:13",
+    "XAGUSD BEARISH entry with H4=BULLISH on 2026-06-12 13:27:23",
+    "XAGUSD BEARISH entry with H4=BULLISH on 2026-06-12 13:30:56"
   ],
-  "ml_retrain_needed": true,
-  "ml_retrain_reason": "new data available",
+  "ml_retrain_needed": false,
+  "ml_retrain_reason": "",
   "specific_actions": [
-    "disable GBPUSD",
-    "prioritize XAGUSD and XAUUSD",
-    "focus on London and NY sessions"
+    "GFT $5K 2-Step: adjust risk management to avoid H4 violations",
+    "GFT $1K Instant: enable XAUUSD and monitor for trading opportunities",
+    "NSE Fyers: fix exit tracking and review open trades"
   ],
   "alerts": [
     "FTMO $10K deadline approaching",
-    "GFT $5K 2-Step H4 violations"
+    "GFT $5K 2-Step needs +$433 more"
   ],
   "key_insights": [
     "XAGUSD has 80% win rate and 1.81 avg R:R",
-    "XAUUSD has 83.7% win rate but is disabled on GFT"
+    "XAUUSD has 83.7% win rate and is now enabled on all GFT accounts"
   ],
   "ml_metrics": {
-    "cnn_nse": {
-      "trained_at": "20260527_1120",
-      "test_acc": 0.7584,
-      "test_prec": 0.9048,
-      "val_loss": 0.555972
+    "dnn_trade_scorer_nse": {
+      "trained_at": "20260612_2353",
+      "test_acc": 0.5298,
+      "test_prec": 0.6926,
+      "val_loss": 0.3264,
+      "auc": 0.4415,
+      "engine": "nse",
+      "activation_gate_passed": false
     },
-    "dnn_nse": {
-      "trained_at": "20260527_1120",
-      "test_acc": 0.7383,
-      "test_prec": 0.9184,
-      "val_loss": 0.57245
+    "dnn_trade_scorer_forex": {
+      "trained_at": "20260612_2353",
+      "test_acc": 0.537,
+      "test_prec": 0.6988,
+      "val_loss": 0.2475,
+      "auc": 0.6041,
+      "engine": "forex",
+      "activation_gate_passed": true
     },
-    "rnn_nse": {
-      "trained_at": "20260527_1120",
-      "test_acc": 0.8,
-      "test_prec": null,
-      "val_loss": 0.821857
+    "rnn_sequence_nse": {
+      "trained_at": "20260612_2353",
+      "test_acc": 0.537,
+      "test_prec": 0.6988,
+      "val_loss": 0.2546,
+      "auc": 0.4593,
+      "engine": "nse",
+      "activation_gate_passed": false
     }
   },
   "raw_data": {

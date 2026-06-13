@@ -1350,6 +1350,22 @@ class GFT2StepWorker:
                close_lots=cl, exit_price=ev.get('price'),
                pnl=ev.get('pnl', 0), trade_id=t.get('id'))
 
+        # ── Persist to cb6_trades.db + pattern DB ─────────────────────────────
+        if etype in ('SL', 'T1', 'T2', 'T3', 'MAE_EXIT', 'TIME_EXIT', 'OFFLINE_CLOSE'):
+            try:
+                from data.persistence.trade_persistence import write_gft_trade
+                write_gft_trade(
+                    account_id   = 'GFT_5K',
+                    trade        = t,
+                    exit_context = {
+                        'hit'      : etype,
+                        'close_px' : ev.get('price', 0),
+                        'pnl'      : ev.get('pnl', t.get('pnl_usd', 0)),
+                    },
+                )
+            except Exception as _pe:
+                logger.debug(f"GFT 5K persistence skipped: {_pe}")
+
         # ── ML outcome capture ────────────────────────────────────────────────
         if etype in ('SL', 'T1', 'T2', 'T3', 'MAE_EXIT', 'TIME_EXIT'):
             try:

@@ -1,50 +1,50 @@
 # CB6 SOVEREIGN Board Report
-**2026-06-08 23:31** | 🔴 RED
+**2026-06-12 23:54** | 🟡 YELLOW
 
-## Urgent action needed: FTMO $10K deadline nears with $608 deficit, GFT 5K 2-Step behind phase 1 target by $433, and signal integrity concerns due to H4 violations
+## GFT $5K 2-Step needs +$433 to reach phase target, FTMO $10K needs +$608, with overall win rate of 67.84% and CNN accuracy of 75.84%
 
 ### 💰 Prop Firms
-FTMO $10K: $9804.91 of $10,000 target, deadline June 6; GFT $5K 2-Step: $4864.37 of $5000 phase 1 target, deadline not specified; GFT $1K Instant: $982.53 of $1000 target, no trades yet
+FTMO $10K: $9804.91, needs +$608 to reach target, deadline urgent; GFT $5K 2-Step: $4694.1, needs +$433 to reach phase target; GFT $1K Instant: $982.53, no trades yet
 
 ### ⚙️ Engineering
-38 files checked, 3 TODOs found, top task is to fix TODO in silver_bullet.py at line 493 to correctly calculate swing highs and lows
+Codebase has syntax errors and TODOs, top priority tasks include fixing GFT kill zones and updating signal_scanner.py, 3 TODOs found
 
 ### 🤖 ML
-CNN accuracy=75.8%, DNN precision=91.8%, retrain decision: YES due to high val_loss in RNN NSE
+CNN accuracy: 75.84%, DNN precision: 91.84%, retrain decision: YES, overfitting risk: MEDIUM
 
 ### 📢 Growth
-Published LinkedIn post with 0 engagements, top growth channel is TradingView with 0 content created
+Top growth channel: TradingView, content output: 2 posts on LinkedIn and Twitter, 1 thread on Twitter
 
 ### 📊 Financials
-Agent cost $0.00/month, total PnL $-330.72, path to $1M: behind schedule due to FTMO and GFT 5K performance
+Total real money at risk: $1292.53, agent cost: $0.00/month, total PnL: -$255.52, path to $1M: behind schedule
 
 ## ⚡ Decisions Needed
-### #1 [URGENT] Increase trading activity on FTMO $10K account
-**NEXUS Recommendation:** NEXUS says: do this to meet the urgent deadline
-**Impact if ignored:** Missing the deadline will result in account closure
+### #1 [URGENT] Fix GFT kill zones in forex_engine/prop_firms/gft/gft_5k_2step.py
+**NEXUS Recommendation:** NEXUS says: prioritize fixing GFT kill zones to use [(7,12),(16,20)] UTC
+**Impact if ignored:** Failure to fix GFT kill zones may result in significant losses
 
-### #2 [HIGH] Adjust strategy on GFT 5K 2-Step account to meet phase 1 target
-**NEXUS Recommendation:** NEXUS says: do this to progress to phase 2
-**Impact if ignored:** Failing to meet phase 1 target will delay progression to phase 2
+### #2 [HIGH] Update signal_scanner.py to use lenient sweep_confirmed() helper
+**NEXUS Recommendation:** NEXUS says: prioritize updating signal_scanner.py to improve signal integrity
+**Impact if ignored:** Failure to update signal_scanner.py may result in compromised signal integrity
 
-### #3 [HIGH] Address signal integrity concerns due to H4 violations
-**NEXUS Recommendation:** NEXUS says: do this to ensure trading discipline and strategy alignment
-**Impact if ignored:** Ignoring H4 violations will lead to continued suboptimal performance
+### #3 [MEDIUM] Review and fix TODOs in scanner/silver_bullet.py
+**NEXUS Recommendation:** NEXUS says: prioritize reviewing and fixing TODOs in scanner/silver_bullet.py to improve code quality
+**Impact if ignored:** Failure to review and fix TODOs may result in codebase degradation
 
 ## ✅ Wins
-- XAGUSD win rate: 80%
-- XAUUSD win rate: 83.7%
-- London session win rate: 76.9%
+- GFT $5K 2-Step balance: $4694.1, with overall win rate of 67.84%
+- XAGUSD win rate: 80%, XAUUSD win rate: 83.7%
+- CNN accuracy: 75.84%, DNN precision: 91.84%
 
 ## ⚠️ Risks
-- FTMO $10K deadline: $608 deficit with 2 days left
-- GFT 5K 2-Step: $433 deficit in phase 1 target
-- H4 violations detected in state files, indicating signal integrity concerns
+- FTMO $10K needs +$608 to reach target, deadline urgent
+- GFT $5K 2-Step needs +$433 to reach phase target
+- GBPUSD win rate: 33%, may require symbol disablement
 
 ## 📋 Tomorrow
-- Fix TODO in silver_bullet.py at line 493
-- Create high-quality content on TradingView
-- Review and adjust trading strategy on FTMO $10K account
+- Fix GFT kill zones in forex_engine/prop_firms/gft/gft_5k_2step.py
+- Update signal_scanner.py to use lenient sweep_confirmed() helper
+- Review and fix TODOs in scanner/silver_bullet.py
 
 ## 🎯 $1M Path
-Behind schedule: 6 months at current trajectory, with a projected deficit of $330,000
+Behind schedule, with current total PnL: -$255.52, and projected 6 months to reach $1M at current trajectory

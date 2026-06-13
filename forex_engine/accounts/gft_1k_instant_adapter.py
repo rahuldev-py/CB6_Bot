@@ -80,13 +80,15 @@ def build_gft_1k_instant_connector(paper: Optional[bool] = None):
     import os as _os
 
     # Resolve terminal path directly from env var — do NOT gate on os.path.isfile().
-    # The pre-check was intermittently returning False on Windows even when the file
-    # exists (MT5 terminal initialising, OS file-system flush, anti-virus scan).
-    # mt5.initialize() is the real gatekeeper; let it report any actual I/O failure.
-    _FALLBACK_PATH = "C:/CB6_MT5/MT5_GFT_1K/terminal64.exe"
-    _env_val  = _os.getenv("GFT_1K_MT5_TERMINAL_PATH", "").strip()
-    _raw_path = _env_val or _FALLBACK_PATH
-    terminal_path = _raw_path.replace("/", _os.sep)
+    # Registry resolution requires the configured file to exist, preserving
+    # account isolation and preventing system-default terminal fallback.
+    terminal_path = get_terminal_path(account_id)
+    if not terminal_path:
+        _send_telegram_alert(
+            "wrong_account_server_block",
+            f"[{account_id}] live startup blocked: dedicated terminal path unavailable",
+        )
+        raise RuntimeError(f"[{account_id}] dedicated terminal path unavailable")
 
     logger.info(
         f"[{account_id}] terminal path resolved: {terminal_path!r} "
@@ -115,9 +117,10 @@ def build_gft_1k_instant_connector(paper: Optional[bool] = None):
         terminal_path=terminal_path,
         symbol_overrides=symbol_overrides,
     )
-    connector.set_alert_callback(
-        lambda msg: _send_telegram_alert("mt5_connected", f"[{account_id}] {msg}")
-    )
+    if hasattr(connector, "set_alert_callback"):
+        connector.set_alert_callback(
+            lambda msg: _send_telegram_alert("mt5_connected", f"[{account_id}] {msg}")
+        )
     _send_telegram_alert(
         "mt5_connected",
         f"[{account_id}] MT5 connected login={credentials['login']} server={credentials['server']}",

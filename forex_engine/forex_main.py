@@ -51,7 +51,7 @@ def _banner(profile: str, mode: str, symbols: str | None = None):
 
 def _run_gft_10k():
     live = os.getenv('CB6_GFT_10K_LIVE_EXECUTION', 'false').lower() == 'true'
-    _banner('GFT $10K Instant', 'LIVE MT5' if live else 'Paper (awaiting credentials)')
+    _banner('GFT $10K Instant', 'LIVE MT5' if live else 'Paper')
     from forex_engine.gft_10k.monitor import main as _worker_main
     _worker_main(['--account-namespace', 'GFT_10K'])
 
@@ -133,7 +133,7 @@ def _run_all():
     logger.info("CB6 QUANTUM — ALL FOREX ENGINES STARTING")
     logger.info("  Engine 1 : GFT $5K 2-Step GOAT (LIVE)")
     logger.info("  Engine 2 : GFT $1K Instant (LIVE)")
-    logger.info("  Engine 3 : GFT $10K Instant (pending credentials)")
+    logger.info("  Engine 3 : GFT $10K Instant (LIVE)")
     logger.info("=" * 60)
 
     # Start GFT $10K Telegram bot listener in this (supervisor) process.
@@ -154,7 +154,7 @@ def _run_all():
                     f"<b>CB6 QUANTUM — GFT $10K INSTANT</b>\n\n"
                     f"Mode     : {mode}\n"
                     f"Markets  : {syms}\n"
-                    f"Sessions : London 08-09 UTC · NY 15-16 UTC\n\n"
+                    f"Sessions : London 07-12 UTC · NY 16-20 UTC\n\n"
                     f"Bot ready — type /start for full menu"
                 )
             except Exception as _ae:
@@ -188,7 +188,7 @@ def _run_all():
             restarts['GFT_1K_INSTANT'] = 0
             next_delay['GFT_1K_INSTANT'] = 5
 
-        # GFT $10K — only starts when CB6_GFT_10K_ENABLED=true (credentials pending)
+        # GFT $10K — starts when CB6_GFT_10K_ENABLED=true
         if env.get('CB6_GFT_10K_ENABLED', 'false').lower() == 'true':
             _10k_cmd = [sys.executable, '-m', 'forex_engine.forex_main', '--profile', 'GFT_10K']
             logger.info(f"[GFT_10K] starting subprocess: {' '.join(_10k_cmd)}")
@@ -210,14 +210,14 @@ def _run_all():
                         if restarts[name] < 3:
                             delay = 300
                             restarts[name] += 1
-                            logger.info(f"[GFT_10K] restarting #{restarts[name]}/3 in {delay}s — install MT5 at C:\\CB6_MT5\\MT5_GFT_10K\\")
+                            logger.info(f"[GFT_10K] restarting #{restarts[name]}/3 in {delay}s")
                             time.sleep(delay)
                             procs[name] = subprocess.Popen(
                                 [sys.executable, '-m', 'forex_engine.forex_main', '--profile', 'GFT_10K'],
                                 cwd=_ROOT, env=env
                             )
                         else:
-                            logger.error("[GFT_10K] 3 restart attempts exhausted — install MT5 terminal and restart forex engine")
+                            logger.error("[GFT_10K] 3 restart attempts exhausted — check MT5 terminal at C:\\CB6_MT5\\MT5_GFT_10K\\")
                         continue
                     if code == 0 and name == 'GFT_10K':
                         logger.warning(f"[GFT_10K] exited cleanly — not restarting")

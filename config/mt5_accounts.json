@@ -1,7 +1,7 @@
 {
   "_comment": "CB6 Quantum \u2014 MT5 Multi-Account Registry. Credentials stay in .env \u2014 only env var NAMES are stored here.",
   "FTMO_10K": {
-    "label": "FTMO Demo $25K",
+    "label": "FTMO Demo $25K \u2014 DEACTIVATED (deprioritized 2026-06-12)",
     "terminal": "C:/CB6_MT5/MT5_FTMO_10K/terminal64.exe",
     "terminal_env": "MT5_TERMINAL_FTMO",
     "login_env": "MT5_LOGIN",
@@ -12,7 +12,7 @@
     "risk_profile": "ftmo",
     "state_dir": "data/ftmo_25k",
     "legacy_state": "",
-    "enabled": true,
+    "enabled": false,
     "account_size": 25000.0,
     "symbols": [
       "XAUUSD",
@@ -39,6 +39,7 @@
     "enabled": true,
     "account_size": 5000.0,
     "symbols": [
+      "XAUUSD",
       "XAGUSD",
       "USOIL"
     ],
@@ -61,6 +62,7 @@
     "enabled": true,
     "account_size": 1000.0,
     "symbols": [
+      "XAUUSD",
       "XAGUSD",
       "USOIL"
     ],
@@ -82,7 +84,7 @@
     "legacy_state": "",
     "enabled": true,
     "account_size": 10000.0,
-    "symbols": ["XAGUSD", "USOIL"],
+    "symbols": ["XAUUSD", "XAGUSD", "USOIL"],
     "max_daily_loss_pct": 5.0,
     "max_drawdown_pct": 10.0,
     "risk_per_trade_pct": 0.5

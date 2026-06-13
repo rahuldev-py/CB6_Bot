@@ -1,41 +1,74 @@
 {
   "retrain_decision": "YES",
   "markets_to_retrain": [
-    "NSE"
+    "NSE",
+    "Forex"
   ],
   "models_to_retrain": [
-    "cnn_nse",
-    "dnn_nse",
-    "rnn_nse"
+    "dnn_trade_scorer_nse",
+    "dnn_trade_scorer_forex",
+    "rnn_sequence_nse"
   ],
-  "reason": "RNN NSE has high val_loss (0.822), CNN NSE and DNN NSE are near threshold for test_acc and val_loss",
+  "reason": "All models have low accuracy and high val_loss, with none meeting target metrics",
   "old_model_metrics": {
-    "cnn_nse": {
-      "test_acc": 0.7584,
-      "test_prec": 0.9048,
-      "val_loss": 0.555972
+    "dnn_trade_scorer_nse": {
+      "acc": 0.5298,
+      "prec": 0.6872,
+      "val_loss": 0.3073
     },
-    "dnn_nse": {
-      "test_acc": 0.7383,
-      "test_prec": 0.9184,
-      "val_loss": 0.57245
+    "dnn_trade_scorer_forex": {
+      "acc": 0.537,
+      "prec": 0.6988,
+      "val_loss": 0.2678
     },
-    "rnn_nse": {
-      "test_acc": 0.8,
-      "test_prec": null,
-      "val_loss": 0.821857
+    "rnn_sequence_nse": {
+      "acc": 0.537,
+      "prec": 0.6988,
+      "val_loss": 0.2539
     }
   },
-  "new_model_metrics": {},
-  "improvement": {},
+  "new_model_metrics": {
+    "CNN NSE": {
+      "acc": 0.7584,
+      "prec": 0.9048,
+      "val_loss": 0.556
+    },
+    "DNN NSE": {
+      "acc": 0.7383,
+      "prec": 0.9184,
+      "val_loss": 0.572
+    },
+    "RNN NSE": {
+      "acc": 0.8,
+      "val_loss": 0.822
+    }
+  },
+  "improvement": {
+    "CNN NSE": {
+      "acc_improvement": 0.2286,
+      "prec_improvement": 0.2176,
+      "val_loss_improvement": -0.2487
+    },
+    "DNN NSE": {
+      "acc_improvement": 0.2085,
+      "prec_improvement": 0.2306,
+      "val_loss_improvement": -0.2649
+    },
+    "RNN NSE": {
+      "acc_improvement": 0.2622,
+      "val_loss_improvement": -0.5681
+    }
+  },
   "overfitting_risk": "MEDIUM",
   "deployment_status": "SHADOW TEST NEW MODEL",
   "weak_models": [
-    "rnn_nse"
+    "dnn_trade_scorer_nse",
+    "dnn_trade_scorer_forex",
+    "rnn_sequence_nse"
   ],
   "strong_models": [
-    "cnn_nse",
-    "dnn_nse"
+    "CNN NSE",
+    "DNN NSE"
   ],
   "feature_improvements": [
     "session_type",
@@ -44,92 +77,63 @@
     "H4_bias_aligned"
   ],
   "current_model_health": {
-    "cnn_nse": "Grade B",
-    "dnn_nse": "Grade B",
-    "rnn_nse": "Grade A (overfitting risk)"
+    "dnn_trade_scorer_nse": "UNHEALTHY",
+    "dnn_trade_scorer_forex": "UNHEALTHY",
+    "rnn_sequence_nse": "UNHEALTHY"
   },
   "training_triggered": true,
   "days_since_training": {
-    "cnn_nse": 12,
-    "dnn_nse": 12,
-    "rnn_nse": 12
+    "dnn_trade_scorer_nse": 1,
+    "dnn_trade_scorer_forex": 1,
+    "rnn_sequence_nse": 1
   },
   "shadow_status": "ACTIVE",
   "specific_improvements": [
-    "London session feature",
-    "BEARISH bias feature"
+    "Add session_type feature",
+    "Add direction_bias feature",
+    "Add symbol_group feature",
+    "Add H4_bias_aligned binary feature"
   ],
-  "notes": "RNN NSE has high val_loss, retrain with new features to reduce overfitting risk",
+  "notes": "Retrain models with new features and monitor performance",
   "ml_metrics": {
-    "cnn_nse": {
-      "trained_at": "20260527_1120",
-      "market": "nse",
-      "source": "bt_365d_csv",
-      "n_samples": 1494,
-      "seq_shape": [
-        1494,
-        5,
-        4
-      ],
-      "val_loss": 0.555972,
-      "test_acc": 0.7584,
-      "test_prec": 0.9048,
-      "test_recall": 0.7851,
-      "days_old": 12,
-      "needs_retrain": true,
-      "healthy": true,
-      "grade": "B"
-    },
-    "dnn_nse": {
-      "trained_at": "20260527_1120",
-      "market": "nse",
-      "source": "bt_combined_2024_2026",
-      "n_samples": 1494,
-      "n_features": 18,
-      "features": [
-        "dir_enc",
-        "mss_enc",
-        "regime_enc",
-        "index_enc",
-        "score",
-        "fvg_size",
-        "fvg_ratio",
-        "risk_pts",
-        "rr_t1",
-        "rr_t2",
-        "rr_t3",
-        "hour",
-        "minute",
-        "weekday",
-        "session_enc",
-        "fvg_top_dist",
-        "fvg_bottom_dist",
-        "year_enc"
-      ],
-      "epochs_run": 47,
-      "val_loss": 0.57245,
-      "test_acc": 0.7383,
-      "test_prec": 0.9184,
-      "test_recall": 0.7438,
-      "test_mae_r": 1.2745,
-      "days_old": 12,
-      "needs_retrain": true,
-      "healthy": true,
-      "grade": "B"
-    },
-    "rnn_nse": {
-      "trained_at": "20260527_1120",
-      "market": "nse",
-      "source": "bt_365d_csv",
-      "n_days": 459,
-      "seq_len": 8,
-      "feat_dim": 8,
-      "val_loss": 0.821857,
-      "test_acc": 0.8,
-      "days_old": 12,
+    "dnn_trade_scorer_nse": {
+      "trained_at": "20260611_2330",
+      "test_acc": 0.5298,
+      "test_prec": 0.6872,
+      "val_loss": 0.3073,
+      "auc": 0.3271,
+      "days_old": 1,
       "needs_retrain": true,
       "healthy": false,
-      "grade": "A"
+      "activation_gate_passed": false,
+      "engine": "nse",
+      "grade": "D"
+    },
+    "dnn_trade_scorer_forex": {
+      "trained_at": "20260611_2330",
+      "test_acc": 0.537,
+      "test_prec": 0.6988,
+      "val_loss": 0.2678,
+      "auc": 0.5669,
+      "days_old": 1,
+      "needs_retrain": true,
+      "healthy": false,
+      "activation_gate_passed": true,
+      "engine": "forex",
+      "grade": "D"
+    },
+    "rnn_sequence_nse": {
+      "trained_at": "20260611_2330",
+      "test_acc": 0.537,
+      "test_prec": 0.6988,
+      "val_loss": 0.2539,
+      "auc": 0.4297,
+      "days_old": 1,
+      "needs_retrain": true,
+      "healthy": false,
+      "activation_gate_passed": false,
+      "engine": "nse",
+      "grade": "D"
     }
   },
   "triggered_scripts": [
