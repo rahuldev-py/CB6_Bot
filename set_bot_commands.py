@@ -8,7 +8,7 @@ Usage: python set_bot_commands.py
 Bots:
   NSE bot       — TELEGRAM_BOT_TOKEN        (Indian markets)
   GFT $10K bot  — TELEGRAM_BOT_TOKEN_FTMO   (@cb6forexbot — GFT $10K Instant)
-  GFT bot       — TELEGRAM_BOT_TOKEN_GFT    (GFT $5K + $1K + $10K combined)
+  GFT bot       — TELEGRAM_BOT_TOKEN_GFT    (GFT $5K + $10K — $1K disabled, account blown 2026-06-13)
 """
 
 import os
@@ -106,5 +106,5 @@ GFT_COMMANDS = [
 print("Registering Telegram bot menus...\n")
 set_commands(os.getenv("TELEGRAM_BOT_TOKEN",      ""), NSE_COMMANDS,    "NSE Bot      (Indian markets)")
 set_commands(os.getenv("TELEGRAM_BOT_TOKEN_FTMO", ""), GFT10K_COMMANDS, "GFT $10K Bot (@cb6forexbot)")
-set_commands(os.getenv("TELEGRAM_BOT_TOKEN_GFT",  ""), GFT_COMMANDS,    "GFT Bot      ($5K + $1K + $10K)")
+set_commands(os.getenv("TELEGRAM_BOT_TOKEN_GFT",  ""), GFT_COMMANDS,    "GFT Bot      ($5K + $10K)")
 print("\nDone. Open Telegram and type / to see the updated menus.")
