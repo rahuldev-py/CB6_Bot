@@ -48,7 +48,7 @@
     "risk_per_trade_pct": 0.2
   },
   "GFT_1K_INSTANT": {
-    "label": "GFT $1K Instant",
+    "label": "GFT $1K Instant — FAILED 2026-06-13 (login 314983765 blown, re-add when new account purchased)",
     "terminal": "C:/CB6_MT5/MT5_GFT_1K/terminal64.exe",
     "terminal_env": "GFT_1K_MT5_TERMINAL_PATH",
     "login_env": "GFT_1K_MT5_LOGIN",
@@ -59,7 +59,7 @@
     "risk_profile": "gft_1k_instant",
     "state_dir": "data/gft_1k_instant",
     "legacy_state": "",
-    "enabled": true,
+    "enabled": false,
     "account_size": 1000.0,
     "symbols": [
       "XAUUSD",

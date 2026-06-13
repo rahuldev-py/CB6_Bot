@@ -242,18 +242,22 @@ def _cmd_status():
         paused    = 'PAUSED' if state.get('paused') else 'RUNNING'
         open_line = f"  open ${open_pnl:+.2f}" if open_pnl != 0 else ""
 
-        # GFT $1K Instant summary
-        try:
-            from forex_engine.gft_1k_instant.state import load_state as _1k_load, HEARTBEAT_FILE as _1k_hb
-            _1k = _1k_load()
-            _1k_cap  = _1k.get('capital', 1000.0)
-            _1k_dpnl = _1k.get('daily_pnl', 0.0)
-            _1k_paus = '⏸' if _1k.get('paused') else '▶'
-            _1k_hb_s = _hb_age(_1k_hb)
-            _1k_line = (f"\n<b>GFT $1K Instant [{_1k_paus}]</b>  hb:{_1k_hb_s}\n"
-                        f"Balance    : ${_1k_cap:,.2f}  |  Daily: ${_1k_dpnl:+.2f}")
-        except Exception:
-            _1k_line = "\n<b>GFT $1K Instant</b>  [state unavailable]"
+        # GFT $1K Instant — DISABLED (account blown 2026-06-13, re-enable when new account purchased)
+        _1k_enabled = os.getenv('CB6_GFT_1K_INSTANT_ENABLED', 'false').lower() == 'true'
+        if _1k_enabled:
+            try:
+                from forex_engine.gft_1k_instant.state import load_state as _1k_load, HEARTBEAT_FILE as _1k_hb
+                _1k = _1k_load()
+                _1k_cap  = _1k.get('capital', 1000.0)
+                _1k_dpnl = _1k.get('daily_pnl', 0.0)
+                _1k_paus = '⏸' if _1k.get('paused') else '▶'
+                _1k_hb_s = _hb_age(_1k_hb)
+                _1k_line = (f"\n<b>GFT $1K Instant [{_1k_paus}]</b>  hb:{_1k_hb_s}\n"
+                            f"Balance    : ${_1k_cap:,.2f}  |  Daily: ${_1k_dpnl:+.2f}")
+            except Exception:
+                _1k_line = "\n<b>GFT $1K Instant</b>  [state unavailable]"
+        else:
+            _1k_line = "\n<b>GFT $1K Instant</b>  DISABLED — purchase new account to re-enable"
 
         # GFT $10K Instant summary
         try:

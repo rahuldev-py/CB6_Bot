@@ -132,7 +132,7 @@ def _run_all():
     logger.info("=" * 60)
     logger.info("CB6 QUANTUM — ALL FOREX ENGINES STARTING")
     logger.info("  Engine 1 : GFT $5K 2-Step GOAT (LIVE)")
-    logger.info("  Engine 2 : GFT $1K Instant (LIVE)")
+    logger.info("  Engine 2 : GFT $1K Instant (DISABLED — account failed 2026-06-13)")
     logger.info("  Engine 3 : GFT $10K Instant (LIVE)")
     logger.info("=" * 60)
 

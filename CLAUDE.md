@@ -13,7 +13,7 @@
 1. **No equity/stock trades** — Index futures + options ONLY (NIFTY, BANKNIFTY, FINNIFTY, MIDCPNIFTY). Zero exceptions.
 2. **Never set `paper_mode=True`** in any live config or state file. Paper mode is for testing only.
 3. **Never manually edit state.json files** without reading them first and confirming the edit is safe.
-4. **XAUUSD is now enabled on all GFT accounts** — XAUUSD + XAGUSD + USOIL active. H4 bias filter mandatory before any Gold entry (was disabled after May 22 SELL disaster; H4 filter now enforced). Per-account max lots: $10K→0.10, $5K→0.05, $1K→0.01.
+4. **XAUUSD is now enabled on all active GFT accounts** — XAUUSD + XAGUSD + USOIL active on GFT $5K and GFT $10K. H4 bias filter mandatory before any Gold entry. Per-account max lots: $10K→0.10, $5K→0.05. (GFT $1K blown 2026-06-13 — disabled.)
 5. **Never build the SaaS/brokera.in commercial platform** until NSE live win rate ≥ 56% validated + GFT master account profitable.
 6. **FTMO is deprioritized** — do not waste engineering effort on FTMO. Keep existing code running as-is, no new features or debugging effort for FTMO.
 7. **Always use `encoding='utf-8'`** when opening Python files for AST parsing on Windows.
@@ -22,9 +22,9 @@
 
 ## Current Account Status (as of 2026-06-05)
 
-> **PRIORITY ORDER: GFT $5K 2-Step → GFT $1K Instant → NSE Fyers → (FTMO last, deprioritized)**
-> ALL THREE active accounts are REAL funded with real money:
-> GFT $5K + GFT $1K (MT5 prop firm) + NSE Fyers ₹26,000 (Indian markets).
+> **PRIORITY ORDER: GFT $5K 2-Step → GFT $10K Instant → NSE Fyers → (FTMO last, deprioritized)**
+> ACTIVE accounts: GFT $5K 2-Step + GFT $10K Instant (MT5 prop firm) + NSE Fyers ₹26,000 (Indian markets).
+> GFT $1K Instant (login 314983765) BLOWN 2026-06-13 — engine disabled. Re-add when new $1K purchased.
 > FTMO free trial runs as-is — no new engineering effort.
 
 ### GFT $5K 2-Step GOAT ⭐ PRIMARY
@@ -40,17 +40,10 @@
 - **State file:** `data/gft_5k/state.json`
 - **Config:** `forex_engine/prop_firms/gft/gft_config.py`
 
-### GFT $1K Instant Live ⭐ SECONDARY
-- **Capital:** $982.53 | **PnL:** -$17.47
-- **Goal:** Trade live, withdraw profits freely — real funded account
-- **Daily DD limit:** $30 (3%) | **Max DD limit:** $60 (6%)
-- **Internal guards:** Warn $25 | Hard stop at $30
-- **Risk/trade:** 0.25% = $2.50/trade | Max lot: 0.01
-- **Active symbols:** XAUUSD + XAGUSD + USOIL (H4 bias mandatory before Gold entry)
-- **Kill zones:** London 07-12 UTC | NY 16-20 UTC
-- **State file:** `data/gft_1k_instant/state.json`
-- **Config:** `forex_engine/gft_1k_instant/config.py`
-- **Engine:** `forex_engine/gft_1k_instant/`
+### GFT $1K Instant — ❌ BLOWN 2026-06-13 (DISABLED)
+- **Status:** Account 314983765 failed — max drawdown hit. Engine fully disabled.
+- **Re-enable:** When new $1K Instant account purchased → update .env credentials + set `CB6_GFT_1K_INSTANT_ENABLED=true`
+- **Code preserved:** `forex_engine/gft_1k_instant/` kept intact for easy re-activation
 
 ### NSE Engine — Fyers Live Account ⭐ REAL MONEY
 - **Balance:** ₹26,000 real (Fyers broker, not paper)
@@ -200,6 +193,6 @@ python -c "import ast; ast.parse(open('file.py', encoding='utf-8').read()); prin
 - **State files:** Always read before any edit; never corrupt JSON structure
 - **GFT poll speed:** Must be 15s (not 30s/60s)
 - **GFT kill zones:** Must be `[(7,12),(16,20)]` — NOT the old narrow `[(8,9),(15,16),(19,20)]`
-- **GFT $1K Instant:** `CB6_GFT_1K_INSTANT_ENABLED` + `CB6_GFT_1K_INSTANT_LIVE_EXECUTION` must both be `true` for live trading
+- **GFT $1K Instant:** DISABLED (account blown). To re-enable: set `CB6_GFT_1K_INSTANT_ENABLED=true` + `CB6_GFT_1K_INSTANT_LIVE_EXECUTION=true` + update login/password/server in .env
 - **XAUUSD on GFT:** Re-enabled 2026-06-09 with H4 bias filter. Max lots enforced per account. Never disable the H4 filter.
 - **SL buffer:** Always sweep wick extreme + 10-15pt for NSE, never tight 5pt

@@ -1,7 +1,7 @@
 # Prop Firm Hard Rules — Never Violate
 
-> **PRIORITY: GFT $5K 2-Step → GFT $1K Instant → GFT $10K Instant → NSE → FTMO (deprioritized)**
-> All 3 GFT accounts are REAL funded with withdrawal rights. FTMO runs as-is, no active effort.
+> **PRIORITY: GFT $5K 2-Step → GFT $10K Instant → NSE → FTMO (deprioritized)**
+> Active GFT accounts: $5K 2-Step + $10K Instant. GFT $1K Instant BLOWN 2026-06-13 — disabled, purchase new to re-enable. FTMO runs as-is, no active effort.
 
 ## GFT $5K 2-Step GOAT ⭐ PRIMARY
 | Rule | Value | Note |
@@ -18,17 +18,11 @@
 | Risk per trade (A+ max) | 0.75% = ~$37/trade | A+ setups with sim boost only |
 | Max daily loss (6 trades×normal) | ~$146 | $24 under $170 hard stop — safe |
 
-## GFT $1K Instant Live ⭐ SECONDARY
-| Rule | Value | Note |
-|------|-------|------|
-| Account size | $1,000 | Real funded, withdrawals open |
-| Daily DD limit | $30 (3%) | Hard stop — day ends |
-| Max DD limit | $60 (6%) | Breach = blown |
-| Risk per trade | 0.25% = $2.50 | Max lot 0.01 |
-| Active symbols | XAUUSD + XAGUSD + USOIL | XAUUSD viable only when SL ≤ $2.50 distance |
-| XAUUSD max lot | 0.01 | Engine auto-skips if calc lots < 0.01 min |
+## GFT $1K Instant — ❌ BLOWN 2026-06-13 (DISABLED)
+Account 314983765 hit max drawdown. Engine disabled. Re-enable when new account purchased.
+To re-activate: update `.env` login/password/server + set `CB6_GFT_1K_INSTANT_ENABLED=true`.
 
-## GFT $10K Instant ⭐ TERTIARY
+## GFT $10K Instant ⭐ SECONDARY
 | Rule | Value | Note |
 |------|-------|------|
 | Account size | $10,000 | Real funded |
@@ -48,12 +42,6 @@
 | Total warning | -$250 |
 | Total reduce | -$350 |
 | Total halt | -$430 |
-
-## Internal Guards — GFT $1K Instant
-| Guard | Value |
-|-------|-------|
-| Warning | -$25/day |
-| Hard stop today | -$30/day (= official limit) |
 
 ## Internal Guards — GFT $10K Instant
 | Guard | Value |
