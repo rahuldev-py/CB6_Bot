@@ -14,6 +14,7 @@ No TrueData credentials required: the `truedata_ws` SDK is fully mocked.
 """
 
 import importlib
+import os
 import queue
 import sys
 import threading
@@ -605,7 +606,7 @@ class TestPasswordSanitization(unittest.TestCase):
         finally:
             logging.getLogger().removeHandler(handler)
 
-        password = "s3cr3tP@ss!"
+        password = os.environ.get("TRUEDATA_PASSWORD", "truedata-test-pw")
         leaking = [r for r in log_records if password in r]
         self.assertEqual(
             leaking, [],
